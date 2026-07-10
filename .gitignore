@@ -25,3 +25,6 @@ node_modules/
 
 # AI assistant configs
 .claude/
+
+# Local project documentation (not for public repo)
+PROJECT_DOC.md
