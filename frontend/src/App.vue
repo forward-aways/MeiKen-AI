@@ -133,6 +133,7 @@ function newChat() {
   welcomeShow.value = true
   editingIdx.value = null
   searchMode.value = false
+  profileMode.value = false
   if (welcomeRef.value) welcomeRef.value.runTypewriter()
 }
 
