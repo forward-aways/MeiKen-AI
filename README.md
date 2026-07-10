@@ -1,4 +1,4 @@
-<p align="center">
+<div align="center">
 
 # MeiKen AI
 
@@ -9,7 +9,7 @@
 <img src="https://img.shields.io/badge/FastAPI-0.139-5b57d2?logo=fastapi" alt="FastAPI">
 <img src="https://img.shields.io/badge/license-MIT-5b57d2" alt="License">
 
-</p>
+</div>
 
 ---
 
