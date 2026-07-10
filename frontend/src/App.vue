@@ -1,0 +1,436 @@
+<script setup>
+import { ref, reactive, computed, nextTick, onMounted, watch } from 'vue'
+import { authed, user, convs, activeId, msgs, input, busy, theme, locale, sidebarCollapsed, showCollapsedWidget, systemPrompt, searchEnabled, thinkingEnabled, pinnedIds, t, applyTheme, setLocale, saveSystemPrompt, togglePin, loadConvs, checkAuth, logout } from './store.js'
+import { get, post, del as apiDel, fetchRaw } from './api.js'
+import { stripMd } from './md.js'
+import LoginPage from './components/LoginPage.vue'
+import Sidebar from './components/Sidebar.vue'
+import ChatMessage from './components/ChatMessage.vue'
+import MessageInput from './components/MessageInput.vue'
+import WelcomeScreen from './components/WelcomeScreen.vue'
+import SearchPage from './components/SearchPage.vue'
+import ProfilePage from './components/ProfilePage.vue'
+
+const atBottom = ref(true)
+const chatArea = ref(null)
+const welcomeRef = ref(null)
+const searchMode = ref(false)
+const profileMode = ref(false)
+const welcomeShow = ref(true)
+const convKey = ref(0)
+let abortCtrl = null
+const editingIdx = ref(null)
+const editText = ref('')
+const searchingQuery = ref('')
+
+async function send(txt, isRetry = false) {
+  let msg = (txt || '').trim()
+  if (!msg || busy.value) return
+  if (!activeId.value) {
+    let d = await post('/conversations', { title: t('title') })
+    if (!d) return
+    activeId.value = d.id
+    await loadConvs()
+  }
+  let cid = activeId.value
+  input.value = ''
+  editingIdx.value = null
+  if (!isRetry) msgs.value.push({ role: 'user', content: msg })
+  await nextTick(); scroll()
+  busy.value = true
+  let ctrl = new AbortController(); abortCtrl = ctrl
+  let ast = reactive({ role: 'assistant', content: '' })
+  msgs.value.push(ast)
+  await nextTick(); if (atBottom.value) scroll()
+  try {
+    let r = await fetchRaw('/chat/' + cid, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, system_prompt: systemPrompt.value, enable_search: searchEnabled.value, enable_thinking: thinkingEnabled.value }),
+      signal: ctrl.signal
+    })
+    let reader = r.body.getReader()
+    let dec = new TextDecoder()
+    let buf = ''
+    while (true) {
+      let { done, value } = await reader.read()
+      if (done) break
+      buf += dec.decode(value, { stream: true })
+      let lines = buf.split('\n'); buf = lines.pop() || ''
+      for (let l of lines) {
+        if (!l.startsWith('data:')) continue
+        let ev = JSON.parse(l.slice(5).trim())
+        if (ev.token) { ast.content += ev.token; await nextTick(); if (atBottom.value) scroll() }
+        else if (ev.reasoning) { ast.reasoning = (ast.reasoning || '') + ev.reasoning; await nextTick(); if (atBottom.value) scroll() }
+        else if (ev.thinking_done) { ast.thinkingTime = ev.thinking_done }
+        else if (ev.status === 'searching') { searchingQuery.value = ev.query || '' }
+        else if (ev.status === 'searched') { searchingQuery.value = ''; if (ev.results) { ast.searchResults = ev.results; ast.searchQuery = ev.query } }
+        else if (ev.error) { ast.content = '⚠ ' + ev.error; ast.error = true }
+      }
+    }
+    if (atBottom.value) { await nextTick(); scroll() }
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      if (ast.content) ast.content += '\n\n*[' + t('stopped') + ']*'
+      else ast.content = '*[' + t('stopped') + ']*'
+    } else {
+      ast.content = '⚠ ' + t('err') + ' ' + e.message
+      ast.error = true
+    }
+  }
+  busy.value = false; abortCtrl = null
+  if (atBottom.value) {
+    await nextTick(); scroll()
+    requestAnimationFrame(() => { requestAnimationFrame(() => { if (atBottom.value) scroll() }) })
+  }
+  setTimeout(() => { if (!ast.error) loadConvs() }, 0)
+}
+
+function stopGen() {
+  if (abortCtrl) { abortCtrl.abort(); busy.value = false; abortCtrl = null }
+}
+
+function retry(idx) {
+  for (let i = idx - 1; i >= 0; i--) {
+    if (msgs.value[i].role === 'user') {
+      let msg = msgs.value[i].content
+      msgs.value.splice(i)
+      send(msg, true)
+      return
+    }
+  }
+}
+
+function regenerate(idx) {
+  for (let i = idx - 1; i >= 0; i--) {
+    if (msgs.value[i].role === 'user') {
+      let msg = msgs.value[i].content
+      msgs.value.splice(i)
+      send(msg, true)
+      return
+    }
+  }
+}
+
+async function openConv(cid) {
+  profileMode.value = false
+  searchMode.value = false
+  let d = await get('/conversations/' + cid)
+  if (!d) return
+  activeId.value = cid
+  msgs.value = d.messages || []
+  welcomeShow.value = false
+  convKey.value++
+  await nextTick()
+  scroll()
+  highlightAll()
+}
+
+function newChat() {
+  activeId.value = null
+  msgs.value = []
+  input.value = ''
+  welcomeShow.value = true
+  editingIdx.value = null
+  searchMode.value = false
+  if (welcomeRef.value) welcomeRef.value.runTypewriter()
+}
+
+async function delConv(cid) {
+  if (!confirm(t('confirm'))) return
+  await apiDel('/conversations/' + cid)
+  if (activeId.value === cid) {
+    activeId.value = null
+    msgs.value = []
+    welcomeShow.value = true
+    if (welcomeRef.value) welcomeRef.value.runTypewriter()
+  }
+  await loadConvs()
+}
+
+function scroll() {
+  if (chatArea.value) {
+    chatArea.value.scrollTop = chatArea.value.scrollHeight
+    atBottom.value = true
+  }
+}
+
+function onScroll() {
+  if (chatArea.value) {
+    atBottom.value = chatArea.value.scrollHeight - chatArea.value.scrollTop - chatArea.value.clientHeight < 40
+  }
+}
+
+function openProfile() {
+  profileMode.value = true
+}
+
+function toggleCollapse() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  if (sidebarCollapsed.value) {
+    setTimeout(() => { showCollapsedWidget.value = true }, 400)
+  } else {
+    showCollapsedWidget.value = false
+  }
+}
+
+function startEdit(i) {
+  editingIdx.value = i
+  editText.value = msgs.value[i].content
+}
+
+function confirmEdit() {
+  if (!editText.value.trim()) return
+  msgs.value.splice(editingIdx.value)
+  send(editText.value, true)
+}
+
+function onEditKeydown(e) {
+  if (e.key === 'Escape') { editingIdx.value = null; editText.value = '' }
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    confirmEdit()
+  }
+}
+
+async function copyText(content, idx) {
+  try {
+    await navigator.clipboard.writeText(stripMd(content))
+  } catch {
+    await navigator.clipboard.writeText(content)
+  }
+}
+
+async function copyMd(content, idx) {
+  await navigator.clipboard.writeText(content)
+}
+
+function highlightAll() {
+  if (window.hljs) {
+    nextTick(() => { window.hljs.highlightAll() })
+  }
+}
+
+onMounted(() => {
+  applyTheme(theme.value)
+  checkAuth()
+  const hash = window.location.hash.slice(1)
+  const params = new URLSearchParams(hash)
+  if (params.get('reset-token')) {
+    localStorage.setItem('mk-reset-token', params.get('reset-token'))
+  }
+})
+
+watch([() => msgs.value.length, busy], ([len, b]) => {
+  if (!b && len > 0) highlightAll()
+})
+
+watch(locale, () => {
+  if (authed.value && !msgs.value.length && welcomeRef.value) {
+    welcomeRef.value.runTypewriter()
+  }
+})
+</script>
+
+<template>
+  <LoginPage v-if="!authed" />
+
+  <template v-if="authed">
+    <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
+      <Sidebar
+        @new-chat="newChat"
+        @open-conv="openConv"
+        @search-mode="searchMode = true"
+        @open-profile="openProfile()"
+      />
+    </aside>
+
+    <section class="main">
+      <SearchPage
+        v-if="searchMode"
+        @close="searchMode = false"
+        @open-conv="(cid) => { searchMode = false; openConv(cid) }"
+      />
+
+      <template v-if="!searchMode && !profileMode">
+        <div class="collapsed-group" v-if="showCollapsedWidget">
+          <svg viewBox="0 0 40 40" width="26" height="26" fill="none"><rect width="40" height="40" rx="10" style="fill:var(--accent)"/><path d="M9 29V12l11 12 11-12v17" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div class="collapsed-header">
+            <button @click="toggleCollapse()" :title="t('expand')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+            <button @click="searchMode = true; nextTick(() => {})" :title="t('search')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </button>
+            <button @click="newChat" :title="t('newChat')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="top-bar" v-if="!sidebarCollapsed"><div style="flex:1"></div></div>
+
+        <div class="chat-area" ref="chatArea" @scroll="onScroll">
+          <div class="chat-inner">
+            <WelcomeScreen v-if="!msgs.length && welcomeShow" ref="welcomeRef" @send="send" />
+
+            <ChatMessage
+              v-for="(m, i) in msgs"
+              :key="convKey + '-' + i"
+              :message="m"
+              :index="i"
+              @regenerate="regenerate(i)"
+              @retry="retry(i)"
+              @send="(payload) => send(payload?.content || m.content, true)"
+            />
+
+            <div class="typing" v-if="busy"><span></span><span></span><span></span></div>
+            <div class="searching-bar" v-if="searchingQuery">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <span>{{ t('searching') }}</span>
+            </div>
+          </div>
+        </div>
+
+        <MessageInput
+          v-if="msgs.length"
+          :modelValue="input"
+          :disabled="busy"
+          :placeholder="t('ph')"
+          :searchEnabled="searchEnabled.value"
+          :thinkingEnabled="thinkingEnabled.value"
+          @update:modelValue="(v) => { input = v }"
+          @update:searchEnabled="(v) => { searchEnabled.value = v }"
+          @update:thinkingEnabled="(v) => { thinkingEnabled.value = v }"
+          @send="send(input)"
+          @stop="stopGen"
+        />
+
+        <button class="scroll-btn" v-if="!atBottom && msgs.length" @click="scroll(); atBottom = true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+        </button>
+      </template>
+
+      <ProfilePage v-if="profileMode" @close="profileMode = false" />
+    </section>
+  </template>
+</template>
+
+<style>
+.collapsed-group {
+  position: fixed;
+  top: .85rem;
+  left: 20px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: popIn .2s var(--spring);
+}
+
+.collapsed-logo {
+  border-radius: 10px;
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(6px) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.collapsed-header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 3px;
+  box-shadow: var(--shadow-md);
+}
+
+.collapsed-header button {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s;
+}
+
+.collapsed-header button:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 1rem 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: transparent;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: none;
+}
+
+.chat-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.5rem;
+  scroll-behavior: smooth;
+}
+
+.chat-inner {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.scroll-btn {
+  position: fixed;
+  bottom: 90px;
+  right: 30px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-md);
+  z-index: 20;
+  transition: all .2s var(--ease);
+  animation: fadeIn .2s var(--ease);
+}
+
+.scroll-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: translateY(-2px);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.searching-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+  font-size: 13px;
+  padding: 8px 0;
+  animation: fadeIn .3s var(--ease);
+}
+</style>
