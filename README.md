@@ -115,18 +115,25 @@
 
 | 依赖 | 版本 | 安装方式 |
 |:---:|:---:|---|
-| Python | >= 3.13 | [python.org](https://www.python.org/) |
+| uv | latest | [官方安装指南](https://docs.astral.sh/uv/getting-started/installation/) |
 | Node.js | >= 18 | [nodejs.org](https://nodejs.org/) |
-| uv | latest | `pip install uv` 或 [官方安装](https://docs.astral.sh/uv/) |
+
+> uv 会自动管理 Python 版本和虚拟环境，无需手动安装 Python。
 
 ### 安装与配置
 
 ```bash
-git clone https://github.com/你的用户名/MeiKen_AI.git
+# 克隆项目
+git clone git@github.com:forward-aways/MeiKen-AI.git
 cd MeiKen_AI
 
-# 安装依赖
+# 安装 Python（uv 自动下载所需版本）
+uv python install 3.13
+
+# 安装后端依赖（自动创建虚拟环境）
 uv sync
+
+# 安装前端依赖
 cd frontend && npm install && cd ..
 ```
 
