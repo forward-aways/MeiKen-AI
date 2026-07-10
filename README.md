@@ -1,13 +1,15 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/Python-3.13-5b57d2?logo=python" alt="Python">
-  <img src="https://img.shields.io/badge/Vue-3.x-5b57d2?logo=vuedotjs" alt="Vue">
-  <img src="https://img.shields.io/badge/FastAPI-0.139-5b57d2?logo=fastapi" alt="FastAPI">
-  <img src="https://img.shields.io/badge/license-MIT-5b57d2" alt="License">
-</p>
 
 # MeiKen AI
 
 基于 FastAPI + Vue 3 的 AI 对话平台，集成 DeepSeek 大模型，支持联网搜索、深度思考、流式输出与多用户管理。
+
+<img src="https://img.shields.io/badge/Python-3.13-5b57d2?logo=python" alt="Python">
+<img src="https://img.shields.io/badge/Vue-3.x-5b57d2?logo=vuedotjs" alt="Vue">
+<img src="https://img.shields.io/badge/FastAPI-0.139-5b57d2?logo=fastapi" alt="FastAPI">
+<img src="https://img.shields.io/badge/license-MIT-5b57d2" alt="License">
+
+</p>
 
 ---
 
