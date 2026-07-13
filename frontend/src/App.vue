@@ -1,6 +1,6 @@
 <script setup>
 import { ref, reactive, computed, nextTick, onMounted, watch } from 'vue'
-import { authed, user, convs, activeId, msgs, input, busy, theme, locale, sidebarCollapsed, showCollapsedWidget, systemPrompt, searchEnabled, thinkingEnabled, pinnedIds, t, applyTheme, setLocale, saveSystemPrompt, togglePin, loadConvs, checkAuth, logout } from './store.js'
+import { authed, user, convs, activeId, msgs, input, busy, theme, locale, sidebarCollapsed, showCollapsedWidget, systemPrompt, searchEnabled, thinkingEnabled, ragEnabled, pinnedIds, t, applyTheme, setLocale, saveSystemPrompt, togglePin, loadConvs, checkAuth, logout, uploadTempFile, deleteTempFile } from './store.js'
 import { get, post, del as apiDel, fetchRaw } from './api.js'
 import { stripMd } from './md.js'
 import LoginPage from './components/LoginPage.vue'
@@ -22,6 +22,26 @@ let abortCtrl = null
 const editingIdx = ref(null)
 const editText = ref('')
 const searchingQuery = ref('')
+const tempFileData = ref(null)
+
+async function onTempFile(file) {
+  if (!file) {
+    if (tempFileData.value) {
+      await deleteTempFile(tempFileData.value.file.id)
+      tempFileData.value = null
+    }
+    return
+  }
+  const data = await uploadTempFile(file)
+  if (data && data.ok) {
+    if (tempFileData.value) {
+      await deleteTempFile(tempFileData.value.file.id)
+    }
+    tempFileData.value = data
+  } else {
+    alert(t('uploadFail'))
+  }
+}
 
 async function send(txt, isRetry = false) {
   let msg = (txt || '').trim()
@@ -35,18 +55,28 @@ async function send(txt, isRetry = false) {
   let cid = activeId.value
   input.value = ''
   editingIdx.value = null
-  if (!isRetry) msgs.value.push({ role: 'user', content: msg })
+  let useTempFile = tempFileData.value
+  if (!isRetry) {
+    let userMsg = { role: 'user', content: msg }
+    if (useTempFile) userMsg.tempFile = useTempFile.file.filename
+    msgs.value.push(userMsg)
+  }
   await nextTick(); scroll()
   busy.value = true
   let ctrl = new AbortController(); abortCtrl = ctrl
-  let ast = reactive({ role: 'assistant', content: '' })
+  let ast = reactive({ role: 'assistant', content: '', streaming: true })
   msgs.value.push(ast)
   await nextTick(); if (atBottom.value) scroll()
   try {
+    let payload = { message: msg, system_prompt: systemPrompt.value, enable_search: searchEnabled.value, enable_thinking: thinkingEnabled.value, enable_rag: ragEnabled.value }
+    if (useTempFile) {
+      payload.enable_rag = true
+      payload.rag_files = [useTempFile.file.id]
+    }
     let r = await fetchRaw('/chat/' + cid, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: msg, system_prompt: systemPrompt.value, enable_search: searchEnabled.value, enable_thinking: thinkingEnabled.value }),
+      body: JSON.stringify(payload),
       signal: ctrl.signal
     })
     let reader = r.body.getReader()
@@ -63,9 +93,12 @@ async function send(txt, isRetry = false) {
         if (ev.token) { ast.content += ev.token; await nextTick(); if (atBottom.value) scroll() }
         else if (ev.reasoning) { ast.reasoning = (ast.reasoning || '') + ev.reasoning; await nextTick(); if (atBottom.value) scroll() }
         else if (ev.thinking_done) { ast.thinkingTime = ev.thinking_done }
+        else if (ev.tokens) { ast.tokens = ev.tokens }
         else if (ev.status === 'searching') { searchingQuery.value = ev.query || '' }
         else if (ev.status === 'searched') { searchingQuery.value = ''; if (ev.results) { ast.searchResults = ev.results; ast.searchQuery = ev.query } }
+        else if (ev.status === 'rag_loaded') { ast.ragSources = ev.sources || [] }
         else if (ev.error) { ast.content = '⚠ ' + ev.error; ast.error = true }
+        else if (ev.done) { if (ev.tokens) ast.tokens = ev.tokens }
       }
     }
     if (atBottom.value) { await nextTick(); scroll() }
@@ -78,7 +111,12 @@ async function send(txt, isRetry = false) {
       ast.error = true
     }
   }
+  ast.streaming = false
   busy.value = false; abortCtrl = null
+  if (useTempFile) {
+    await deleteTempFile(useTempFile.file.id)
+    tempFileData.value = null
+  }
   if (atBottom.value) {
     await nextTick(); scroll()
     requestAnimationFrame(() => { requestAnimationFrame(() => { if (atBottom.value) scroll() }) })
@@ -88,13 +126,24 @@ async function send(txt, isRetry = false) {
 
 function stopGen() {
   if (abortCtrl) { abortCtrl.abort(); busy.value = false; abortCtrl = null }
+  let last = msgs.value[msgs.value.length - 1]
+  if (last && last.role === 'assistant') last.streaming = false
+}
+
+async function deleteMsg(idx, msgId) {
+  if (!confirm(t('confirmDeleteMsg'))) return
+  let cid = activeId.value
+  if (cid && msgId) {
+    await apiDel('/conversations/' + cid + '/messages/' + msgId)
+  }
+  msgs.value.splice(idx, 1)
 }
 
 function retry(idx) {
   for (let i = idx - 1; i >= 0; i--) {
     if (msgs.value[i].role === 'user') {
       let msg = msgs.value[i].content
-      msgs.value.splice(i)
+      msgs.value.splice(i + 1)
       send(msg, true)
       return
     }
@@ -105,7 +154,7 @@ function regenerate(idx) {
   for (let i = idx - 1; i >= 0; i--) {
     if (msgs.value[i].role === 'user') {
       let msg = msgs.value[i].content
-      msgs.value.splice(i)
+      msgs.value.splice(i + 1)
       send(msg, true)
       return
     }
@@ -283,6 +332,7 @@ watch(locale, () => {
               @regenerate="regenerate(i)"
               @retry="retry(i)"
               @send="(payload) => send(payload?.content || m.content, true)"
+              @delete="deleteMsg(i, m.id)"
             />
 
             <div class="typing" v-if="busy"><span></span><span></span><span></span></div>
@@ -305,6 +355,7 @@ watch(locale, () => {
           @update:thinkingEnabled="(v) => { thinkingEnabled.value = v }"
           @send="send(input)"
           @stop="stopGen"
+          @tempFile="onTempFile"
         />
 
         <button class="scroll-btn" v-if="!atBottom && msgs.length" @click="scroll(); atBottom = true">

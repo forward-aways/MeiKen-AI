@@ -58,3 +58,5 @@ class ChatReq(BaseModel):
     system_prompt: str = Field(default="", max_length=2000)
     enable_search: bool = Field(default=False)
     enable_thinking: bool = Field(default=False)
+    enable_rag: bool = Field(default=False)
+    rag_files: list[str] = Field(default=[])

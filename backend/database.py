@@ -37,10 +37,22 @@ CREATE TABLE IF NOT EXISTS messages (
     role TEXT NOT NULL CHECK(role IN ('user','assistant')),
     content TEXT NOT NULL,
     created_at TEXT NOT NULL,
+    tokens INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS knowledge_files (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    filename TEXT NOT NULL,
+    filepath TEXT NOT NULL,
+    chunks INTEGER NOT NULL DEFAULT 0,
+    scope TEXT NOT NULL DEFAULT 'kb',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_msg ON messages(conversation_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_conv_user ON conversations(user_id, updated_at);
+CREATE INDEX IF NOT EXISTS idx_kb_user ON knowledge_files(user_id, scope);
 """
 
 # Columns added after initial release; added via ALTER TABLE for existing DBs.
@@ -52,6 +64,10 @@ _MIGRATE_COLUMNS = [
     ("ai_address", "TEXT NOT NULL DEFAULT ''"),
     ("avatar", "TEXT NOT NULL DEFAULT ''"),
     ("avatar_color", "TEXT NOT NULL DEFAULT ''"),
+]
+
+_MSG_MIGRATE_COLUMNS = [
+    ("tokens", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
 # Public user fields (excludes password_hash).
@@ -69,11 +85,15 @@ PROFILE_FIELDS = {
 _tables_ready = False
 
 def _migrate(conn):
-    """Add new columns to legacy users tables (idempotent)."""
+    """Add new columns to legacy tables (idempotent)."""
     existing = {r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
     for col, ddl in _MIGRATE_COLUMNS:
         if col not in existing:
             conn.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
+    msg_existing = {r["name"] for r in conn.execute("PRAGMA table_info(messages)").fetchall()}
+    for col, ddl in _MSG_MIGRATE_COLUMNS:
+        if col not in msg_existing:
+            conn.execute(f"ALTER TABLE messages ADD COLUMN {col} {ddl}")
 
 
 @contextmanager
@@ -182,12 +202,18 @@ def seed_admin(hash_pw: str):
 
 # -- messages --
 
-def msg_add(cid, role, content):
+def msg_add(cid, role, content, tokens=0):
     now = _ts()
     with _db() as c:
-        cur = c.execute("INSERT INTO messages(conversation_id,role,content,created_at) VALUES(?,?,?,?)", (cid, role, content, now))
+        cur = c.execute("INSERT INTO messages(conversation_id,role,content,created_at,tokens) VALUES(?,?,?,?,?)",
+                        (cid, role, content, now, tokens))
         c.execute("UPDATE conversations SET updated_at=? WHERE id=?", (now, cid))
         return dict(c.execute("SELECT * FROM messages WHERE id=?", (cur.lastrowid,)).fetchone())
+
+def msg_delete(cid, mid):
+    with _db() as c:
+        cur = c.execute("DELETE FROM messages WHERE id=? AND conversation_id=?", (mid, cid))
+    return cur.rowcount > 0
 
 def msg_list(cid):
     with _db() as c:
@@ -203,3 +229,28 @@ def search_messages(user_id: int, query: str):
             ORDER BY m.created_at DESC LIMIT 30
         """, (user_id, f"%{query}%")).fetchall()
     return [dict(r) for r in rows]
+
+# -- knowledge files --
+
+def kb_add(file_id: str, user_id: int, filename: str, filepath: str, chunks: int, scope: str = "kb"):
+    now = _ts()
+    with _db() as c:
+        c.execute("INSERT INTO knowledge_files(id,user_id,filename,filepath,chunks,scope,created_at) VALUES(?,?,?,?,?,?,?)",
+                  (file_id, user_id, filename, filepath, chunks, scope, now))
+        return dict(c.execute("SELECT * FROM knowledge_files WHERE id=?", (file_id,)).fetchone())
+
+def kb_list(user_id: int, scope: str = "kb"):
+    with _db() as c:
+        rows = c.execute("SELECT * FROM knowledge_files WHERE user_id=? AND scope=? ORDER BY created_at DESC",
+                         (user_id, scope)).fetchall()
+    return [dict(r) for r in rows]
+
+def kb_get(file_id: str):
+    with _db() as c:
+        r = c.execute("SELECT * FROM knowledge_files WHERE id=?", (file_id,)).fetchone()
+    return dict(r) if r else None
+
+def kb_delete(file_id: str):
+    with _db() as c:
+        cur = c.execute("DELETE FROM knowledge_files WHERE id=?", (file_id,))
+    return cur.rowcount > 0

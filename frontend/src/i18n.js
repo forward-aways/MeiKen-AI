@@ -25,6 +25,9 @@ export const TXT = {
     searchWeb: '联网搜索', searching: '正在搜索…',
     sources: '个网页', searched: '已搜索', showSources: '展开来源', hideSources: '收起来源',
     deepThink: '深度思考', thinking: '思考中…', thoughtFor: '思考', seconds: '秒', showThinking: '展开思考', hideThinking: '收起思考',
+    deleteMsg: '删除消息', confirmDeleteMsg: '确定删除这条消息？', tokens: 'Tokens',
+    rag: '知识库', uploadFile: '上传文件', kbFiles: '知识库文件', noKbFiles: '暂无知识库文件', uploadSuccess: '上传成功', uploadFail: '上传失败', fileTooBig: '文件过大（限 10MB）', unsupportedType: '不支持的文件类型',
+    ragSources: '引用来源', kbEmpty: '知识库为空，请先上传文件',
     tips: ['帮我查一下今天的运势', '帮我做一个为期3天的出国旅游攻略', '出国旅行有什么要注意的吗', '哪个国家风景绝美']
   },
   en: {
@@ -53,6 +56,9 @@ export const TXT = {
     searchWeb: 'Web Search', searching: 'Searching…',
     sources: 'sources', searched: 'Searched', showSources: 'Show sources', hideSources: 'Hide sources',
     deepThink: 'Deep Think', thinking: 'Thinking…', thoughtFor: 'Thought for', seconds: 's', showThinking: 'Show thinking', hideThinking: 'Hide thinking',
+    deleteMsg: 'Delete message', confirmDeleteMsg: 'Delete this message?', tokens: 'Tokens',
+    rag: 'Knowledge', uploadFile: 'Upload', kbFiles: 'KB Files', noKbFiles: 'No files in knowledge base', uploadSuccess: 'Uploaded', uploadFail: 'Upload failed', fileTooBig: 'File too large (max 10MB)', unsupportedType: 'Unsupported file type',
+    ragSources: 'Sources', kbEmpty: 'Knowledge base is empty, please upload files first',
     tips: ['Explain quantum computing simply', 'Write a Python function to merge sorted lists', 'Help brainstorm AI blog ideas', 'Compare REST vs GraphQL with examples']
   }
 }

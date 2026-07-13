@@ -6,7 +6,7 @@ import httpx
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage, trim_messages
 from langchain_core.tools import tool
 
 load_dotenv()
@@ -23,6 +23,9 @@ SEARCH_SYSTEM_SUFFIX = (
 BOCHA_KEY = os.getenv("BOCHA_API_KEY", "")
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+
+TRIM_THRESHOLD = 800000
+TRIM_TARGET = 500000
 
 
 @tool
@@ -82,6 +85,7 @@ def _llm():
         temperature=0.7,
         max_tokens=4096,
         streaming=True,
+        stream_usage=True,
     )
 
 
@@ -105,6 +109,32 @@ def _to_lc(msgs):
     return out
 
 
+def _trim_history(messages):
+    """Trim history to stay within DeepSeek's 1M context window. Only triggers at 800K+ tokens."""
+    try:
+        return trim_messages(
+            messages,
+            max_tokens=TRIM_TARGET,
+            strategy="last",
+            token_counter=_llm(),
+            include_system=True,
+            start_on="human",
+        )
+    except Exception:
+        return messages
+
+
+def _maybe_trim(lc_messages):
+    """Only trim if history exceeds threshold. Preserves cache prefix for normal conversations."""
+    try:
+        count = _llm().get_num_tokens_from_messages(lc_messages)
+    except Exception:
+        return lc_messages
+    if count > TRIM_THRESHOLD:
+        return _trim_history(lc_messages)
+    return lc_messages
+
+
 async def stream_chat(text, history, system_prompt=""):
     sys_msg = system_prompt.strip() if system_prompt.strip() else DEFAULT_SYSTEM
     prompt = ChatPromptTemplate.from_messages([
@@ -113,16 +143,25 @@ async def stream_chat(text, history, system_prompt=""):
         ("human", "{input}"),
     ])
     chain = prompt | _llm()
-    async for chunk in chain.astream({"history": _to_lc(history), "input": text}):
+    total_tokens = 0
+    history = _maybe_trim(_to_lc(history))
+    async for chunk in chain.astream({"history": history, "input": text}):
         if hasattr(chunk, "content") and chunk.content:
             yield chunk.content
+        if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
+            total_tokens = chunk.usage_metadata.get("total_tokens", 0)
+    if total_tokens:
+        yield {"tokens": total_tokens}
 
 
 async def stream_chat_with_search(text, history, system_prompt=""):
     sys_msg = (system_prompt.strip() if system_prompt.strip() else DEFAULT_SYSTEM) + SEARCH_SYSTEM_SUFFIX
-    messages = [SystemMessage(content=sys_msg)] + _to_lc(history) + [HumanMessage(content=text)]
+    messages = [SystemMessage(content=sys_msg)] + _maybe_trim(_to_lc(history)) + [HumanMessage(content=text)]
 
     response = await _llm_with_tools().ainvoke(messages)
+    total_tokens = 0
+    if response.usage_metadata:
+        total_tokens += response.usage_metadata.get("total_tokens", 0)
 
     if response.tool_calls:
         messages.append(response)
@@ -140,9 +179,13 @@ async def stream_chat_with_search(text, history, system_prompt=""):
         async for chunk in _llm().astream(messages):
             if hasattr(chunk, "content") and chunk.content:
                 yield {"token": chunk.content}
+            if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
+                total_tokens += chunk.usage_metadata.get("total_tokens", 0)
     else:
         if response.content:
             yield {"token": response.content}
+    if total_tokens:
+        yield {"tokens": total_tokens}
 
 
 async def _stream_thinking(messages, tools=None):
@@ -151,6 +194,7 @@ async def _stream_thinking(messages, tools=None):
         "model": "deepseek-chat",
         "messages": messages,
         "stream": True,
+        "stream_options": {"include_usage": True},
         "reasoning_effort": "high",
         "thinking": {"type": "enabled"},
     }
@@ -194,14 +238,20 @@ async def _stream_thinking(messages, tools=None):
                     yield ("content", content)
                 if tool_calls:
                     yield ("tool_calls", tool_calls)
+                usage = chunk.get("usage")
+                if usage:
+                    yield ("usage", usage.get("total_tokens", 0))
 
 
 def _build_api_messages(text, history, system_prompt):
     sys_msg = system_prompt.strip() if system_prompt.strip() else DEFAULT_SYSTEM
+    lc_history = _maybe_trim(_to_lc(history))
     messages = [{"role": "system", "content": sys_msg}]
-    for m in history:
-        if m["role"] in ("user", "assistant"):
-            messages.append({"role": m["role"], "content": m["content"]})
+    for m in lc_history:
+        if isinstance(m, HumanMessage):
+            messages.append({"role": "user", "content": m.content})
+        elif isinstance(m, AIMessage):
+            messages.append({"role": "assistant", "content": m.content})
     messages.append({"role": "user", "content": text})
     return messages
 
@@ -209,15 +259,20 @@ def _build_api_messages(text, history, system_prompt):
 async def stream_chat_with_thinking(text, history, system_prompt=""):
     thinking_start = time.time()
     messages = _build_api_messages(text, history, system_prompt)
+    total_tokens = 0
 
     async for kind, data in _stream_thinking(messages):
         if kind == "reasoning":
             yield {"reasoning": data}
         elif kind == "content":
             yield {"token": data}
+        elif kind == "usage":
+            total_tokens = data
 
     thinking_time = round(time.time() - thinking_start, 1)
     yield {"thinking_done": thinking_time}
+    if total_tokens:
+        yield {"tokens": total_tokens}
 
 
 async def stream_chat_with_search_and_thinking(text, history, system_prompt=""):
@@ -244,6 +299,7 @@ async def stream_chat_with_search_and_thinking(text, history, system_prompt=""):
     collected_reasoning = ""
     collected_content = ""
     tool_calls = None
+    total_tokens = 0
 
     async for kind, data in _stream_thinking(messages, tools=tools):
         if kind == "reasoning":
@@ -254,6 +310,8 @@ async def stream_chat_with_search_and_thinking(text, history, system_prompt=""):
             yield {"token": data}
         elif kind == "tool_calls":
             tool_calls = data
+        elif kind == "usage":
+            total_tokens = data
 
     if tool_calls:
         assistant_msg = {
@@ -285,9 +343,13 @@ async def stream_chat_with_search_and_thinking(text, history, system_prompt=""):
                 yield {"reasoning": data}
             elif kind == "content":
                 yield {"token": data}
+            elif kind == "usage":
+                total_tokens = data
 
     thinking_time = round(time.time() - thinking_start, 1)
     yield {"thinking_done": thinking_time}
+    if total_tokens:
+        yield {"tokens": total_tokens}
 
 
 def _normalize_tool_calls(raw_tool_calls):
@@ -304,3 +366,52 @@ def _normalize_tool_calls(raw_tool_calls):
             }
         })
     return result
+
+
+RAG_SYSTEM_SUFFIX = (
+    "\n\nYou have access to a knowledge base. Answer questions based on the provided context. "
+    "If the context doesn't contain relevant information, say so honestly. "
+    "Always cite the source filename when using information from the context."
+)
+
+
+async def stream_chat_with_rag(text, history, system_prompt="", uid=None, rag_files=None):
+    from backend.rag import search_relevant
+    from backend.database import kb_list
+
+    if rag_files:
+        results = search_relevant(text, k=4, file_ids=rag_files)
+    else:
+        results = search_relevant(text, scope="kb", k=4)
+
+    if results:
+        context_parts = []
+        sources = []
+        for i, r in enumerate(results):
+            context_parts.append(f"[Source {i+1}: {r['filename']}]\n{r['content']}")
+            sources.append({"filename": r["filename"], "file_id": r["file_id"], "score": r["score"]})
+        context = "\n\n---\n\n".join(context_parts)
+
+        sys_msg = (system_prompt.strip() if system_prompt.strip() else DEFAULT_SYSTEM) + RAG_SYSTEM_SUFFIX
+        sys_msg += f"\n\n--- Knowledge Base Context ---\n{context}\n--- End Context ---"
+
+        yield {"status": "rag_loaded", "sources": sources}
+    else:
+        sys_msg = (system_prompt.strip() if system_prompt.strip() else DEFAULT_SYSTEM)
+        yield {"status": "rag_loaded", "sources": []}
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", sys_msg),
+        MessagesPlaceholder(variable_name="history"),
+        ("human", "{input}"),
+    ])
+    chain = prompt | _llm()
+    total_tokens = 0
+    history_lc = _maybe_trim(_to_lc(history))
+    async for chunk in chain.astream({"history": history_lc, "input": text}):
+        if hasattr(chunk, "content") and chunk.content:
+            yield {"token": chunk.content}
+        if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
+            total_tokens = chunk.usage_metadata.get("total_tokens", 0)
+    if total_tokens:
+        yield {"tokens": total_tokens}

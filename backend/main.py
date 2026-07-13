@@ -1,21 +1,22 @@
-import json, traceback
+import json, traceback, os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Depends, Body
+from fastapi import FastAPI, HTTPException, Depends, Body, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from backend.database import (
     conv_create, conv_list, conv_get, conv_delete, conv_rename,
-    msg_add, msg_list, search_messages,
+    msg_add, msg_list, msg_delete, search_messages,
     user_create, user_get_by_email, user_get, user_get_by_nickname,
     user_update_password, user_update_profile, seed_admin,
+    kb_add, kb_list, kb_get, kb_delete,
 )
 from backend.schemas import (
     ConvOut, ConvItem, ConvDetail, CreateConv, ChatReq,
     RegisterReq, LoginReq, AuthResp, ProfileReq, ForgotReq, ResetReq, ChangePasswordReq,
 )
-from backend.chat import stream_chat, stream_chat_with_search, stream_chat_with_thinking, stream_chat_with_search_and_thinking
+from backend.chat import stream_chat, stream_chat_with_search, stream_chat_with_thinking, stream_chat_with_search_and_thinking, stream_chat_with_rag
 from fastapi.responses import JSONResponse as JsonResp
 
 from backend.auth import (
@@ -153,30 +154,48 @@ async def route_chat(cid: int, body: ChatReq, uid: int = Depends(current_user)):
 
     async def sse():
         collected = []
+        total_tokens = 0
         try:
-            if body.enable_thinking and body.enable_search:
+            if body.enable_rag:
+                rag_uid = uid
+                async for event in stream_chat_with_rag(body.message, msgs, body.system_prompt, rag_uid, body.rag_files):
+                    if "token" in event:
+                        collected.append(event["token"])
+                    elif "tokens" in event:
+                        total_tokens = event["tokens"]
+                    yield f"data: {json.dumps(event)}\n\n"
+            elif body.enable_thinking and body.enable_search:
                 async for event in stream_chat_with_search_and_thinking(body.message, msgs, body.system_prompt):
                     if "token" in event:
                         collected.append(event["token"])
+                    elif "tokens" in event:
+                        total_tokens = event["tokens"]
                     yield f"data: {json.dumps(event)}\n\n"
             elif body.enable_thinking:
                 async for event in stream_chat_with_thinking(body.message, msgs, body.system_prompt):
                     if "token" in event:
                         collected.append(event["token"])
+                    elif "tokens" in event:
+                        total_tokens = event["tokens"]
                     yield f"data: {json.dumps(event)}\n\n"
             elif body.enable_search:
                 print(f"[SEARCH] enabled for conv {cid}, query: {body.message[:60]}...")
                 async for event in stream_chat_with_search(body.message, msgs, body.system_prompt):
                     if "token" in event:
                         collected.append(event["token"])
+                    elif "tokens" in event:
+                        total_tokens = event["tokens"]
                     yield f"data: {json.dumps(event)}\n\n"
             else:
                 async for token in stream_chat(body.message, msgs, body.system_prompt):
-                    collected.append(token)
-                    yield f"data: {json.dumps({'token': token})}\n\n"
+                    if isinstance(token, dict) and "tokens" in token:
+                        total_tokens = token["tokens"]
+                    else:
+                        collected.append(token)
+                        yield f"data: {json.dumps({'token': token})}\n\n"
             full = "".join(collected)
-            saved = msg_add(cid, "assistant", full)
-            yield f"data: {json.dumps({'done': True, 'id': saved['id']})}\n\n"
+            saved = msg_add(cid, "assistant", full, total_tokens)
+            yield f"data: {json.dumps({'done': True, 'id': saved['id'], 'tokens': total_tokens})}\n\n"
         except Exception as exc:
             traceback.print_exc()
             yield f"data: {json.dumps({'error': str(exc)})}\n\n"
@@ -184,9 +203,52 @@ async def route_chat(cid: int, body: ChatReq, uid: int = Depends(current_user)):
     return StreamingResponse(sse(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
+@app.delete("/api/conversations/{cid}/messages/{mid}")
+def route_msg_delete(cid: int, mid: int, uid: int = Depends(current_user)):
+    c = conv_get(cid)
+    if not c or c.get("user_id", 0) != uid:
+        raise HTTPException(404, "Conversation not found")
+    if not msg_delete(cid, mid):
+        raise HTTPException(404, "Message not found")
+    return {"ok": True}
+
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+# -- knowledge base (protected) --
+
+ALLOWED_EXTS = {".txt", ".md", ".pdf", ".docx"}
+
+@app.post("/api/kb/upload")
+async def route_kb_upload(file: UploadFile = File(...), scope: str = "kb", uid: int = Depends(current_user)):
+    filename = file.filename or "unknown.txt"
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in ALLOWED_EXTS:
+        raise HTTPException(400, f"Unsupported file type: {ext}. Allowed: {', '.join(ALLOWED_EXTS)}")
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(400, "File too large (max 10MB)")
+    from backend.rag import save_upload_file, ingest_document
+    filepath, file_id = save_upload_file(content, filename)
+    chunks = ingest_document(filepath, filename, file_id, scope=scope)
+    rec = kb_add(file_id, uid, filename, filepath, chunks, scope)
+    return {"ok": True, "file": {"id": file_id, "filename": filename, "chunks": chunks}}
+
+@app.get("/api/kb/files")
+def route_kb_list(uid: int = Depends(current_user)):
+    return kb_list(uid, "kb")
+
+@app.delete("/api/kb/files/{file_id}")
+def route_kb_delete(file_id: str, uid: int = Depends(current_user)):
+    rec = kb_get(file_id)
+    if not rec or rec.get("user_id") != uid:
+        raise HTTPException(404, "File not found")
+    from backend.rag import delete_document, cleanup_upload_file
+    delete_document(file_id)
+    cleanup_upload_file(rec["filepath"])
+    kb_delete(file_id)
+    return {"ok": True}
 
 @app.get("/api/search")
 def route_search(q: str = "", uid: int = Depends(current_user)):

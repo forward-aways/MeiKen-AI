@@ -17,6 +17,10 @@ chat.db
 chat.db-wal
 chat.db-shm
 
+# RAG vector store & uploaded files (generated at runtime)
+chroma_db/
+uploads/
+
 # Node.js
 node_modules/
 

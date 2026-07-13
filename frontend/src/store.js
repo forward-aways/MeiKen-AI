@@ -1,6 +1,7 @@
 import { reactive, ref, computed } from 'vue'
 import { TXT } from './i18n.js'
-import { get, post, put } from './api.js'
+import { get, post, put, del } from './api.js'
+import { API_BASE } from './api.js'
 
 export const authed = ref(false)
 export const user = ref({ email: '', nickname: '' })
@@ -11,6 +12,8 @@ export const input = ref('')
 export const busy = ref(false)
 export const searchEnabled = ref(false)
 export const thinkingEnabled = ref(false)
+export const ragEnabled = ref(false)
+export const kbFiles = ref([])
 export let abortCtrl = null
 
 export const theme = ref(localStorage.getItem('mk-theme') || 'light')
@@ -54,6 +57,42 @@ export const filteredConvs = computed(() => {
 export async function loadConvs() {
   const d = await get('/conversations')
   if (d) convs.value = d
+}
+
+export async function loadKBFiles() {
+  const d = await get('/kb/files')
+  if (d) kbFiles.value = d
+}
+
+export async function uploadKBFile(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const r = await fetch(API_BASE + '/kb/upload', { method: 'POST', body: formData, credentials: 'include' })
+  if (r.ok) {
+    const data = await r.json()
+    await loadKBFiles()
+    return data
+  }
+  return null
+}
+
+export async function deleteKBFile(fileId) {
+  await del('/kb/files/' + fileId)
+  await loadKBFiles()
+}
+
+export async function uploadTempFile(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const r = await fetch(API_BASE + '/kb/upload?scope=temp', { method: 'POST', body: formData, credentials: 'include' })
+  if (r.ok) {
+    return await r.json()
+  }
+  return null
+}
+
+export async function deleteTempFile(fileId) {
+  await del('/kb/files/' + fileId)
 }
 
 const isLocal = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost'

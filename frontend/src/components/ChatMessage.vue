@@ -1,6 +1,6 @@
 <script setup>
 import { ref, nextTick } from 'vue'
-import { msgs, user, busy, locale, t } from '../store.js'
+import { msgs, user, locale, t } from '../store.js'
 import { md, stripMd } from '../md.js'
 
 const props = defineProps({
@@ -8,7 +8,7 @@ const props = defineProps({
   index: { type: Number, required: true }
 })
 
-const emit = defineEmits(['regenerate', 'retry', 'send'])
+const emit = defineEmits(['regenerate', 'retry', 'send', 'delete'])
 const editing = ref(false)
 const editText = ref('')
 const copiedLabel = ref(null)
@@ -59,6 +59,10 @@ function thinkingLabel(sec) {
   return `Thought for ${sec}s`
 }
 
+function ragSourcesLabel(n) {
+  return locale.value === 'zh' ? `\u5F15\u7528 ${n} \u4E2A\u6587\u6863\u7247\u6BB5` : `${n} sources cited`
+}
+
 function truncate(s, max) {
   if (!s) return ''
   return s.length > max ? s.slice(0, max) + '...' : s
@@ -86,6 +90,23 @@ function truncate(s, max) {
         </button>
         <div v-if="showThinking" class="thinking-content">
           <div v-html="md(message.reasoning)"></div>
+        </div>
+      </div>
+
+      <div v-if="message.ragSources && message.ragSources.length" class="search-sources">
+        <button class="sources-toggle" @click="showSources = !showSources">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>{{ ragSourcesLabel(message.ragSources.length) }}</span>
+          <svg class="chevron" :class="{ open: showSources }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div v-if="showSources" class="sources-list">
+          <div v-for="(r, i) in message.ragSources" :key="i" class="source-card">
+            <div class="source-num">{{ i + 1 }}</div>
+            <div class="source-info">
+              <div class="source-title">{{ r.filename }}</div>
+              <div class="source-snippet">relevance: {{ r.score }}</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -124,8 +145,12 @@ function truncate(s, max) {
         <button @click="startEdit" :title="t('edit')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
+        <button @click="emit('delete')" :title="t('deleteMsg')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
       </div>
-      <div class="msg-actions" v-if="message.role === 'assistant' && !busy && !message.error">
+      <div class="msg-actions" v-if="message.role === 'assistant' && !message.streaming && !message.error">
+        <span v-if="message.tokens" class="token-badge">{{ message.tokens }} {{ t('tokens') }}</span>
         <button @click="copyText" :class="{ copied: copiedLabel === 'text-' + index }">
           <svg v-if="copiedLabel !== 'text-' + index" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           <svg v-if="copiedLabel === 'text-' + index" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
@@ -139,8 +164,11 @@ function truncate(s, max) {
         <button @click="emit('regenerate')" :title="t('regen')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         </button>
+        <button @click="emit('delete')" :title="t('deleteMsg')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
       </div>
-      <div class="msg-actions" v-if="message.role === 'assistant' && !busy && message.error">
+      <div class="msg-actions" v-if="message.role === 'assistant' && message.streaming && message.error">
         <button @click="emit('retry')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           <span>{{ t('retry') }}</span>
@@ -281,11 +309,12 @@ function truncate(s, max) {
 :deep(.code-block .copy-btn:hover) { background: #30363d; border-color: #484f5a; }
 :deep(.code-block .copy-btn.copied) { background: #1a7f37; border-color: #1a7f37; color: #fff; }
 :deep(.code-block .lang-tag) { position: absolute; top: 7px; left: 12px; font-size: 11px; color: #8b949e; font-family: var(--font); z-index: 2; user-select: none; }
-.msg-actions { display: flex; gap: 2px; padding: .2rem 0 0 0; }
+.msg-actions { display: flex; align-items: center; gap: 2px; padding: .2rem 0 0 0; }
 .msg-actions button { display: flex; align-items: center; gap: 4px; background: none; border: none; color: var(--text-muted); font-size: 12px; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: all .15s var(--ease); font-family: var(--font); }
 .msg-actions button:hover { color: var(--text); background: var(--border); }
 .msg-actions button.copied { color: #1a7f37; background: rgba(26,127,55,.08); }
 .msg-actions button svg { width: 14px; height: 14px; opacity: .65; flex-shrink: 0; }
+.token-badge { font-size: 11px; color: var(--text-muted); padding: 2px 8px; border-radius: 10px; background: var(--border); margin-right: 4px; white-space: nowrap; }
 .edit-row { display: flex; flex-direction: column; gap: 6px; }
 .edit-input { width: 100%; padding: .55rem .8rem; border-radius: var(--radius); border: 1.5px solid var(--accent); background: var(--surface); color: var(--text); font-size: 14.5px; font-family: var(--font); resize: none; outline: none; line-height: 1.5; min-height: 52px; }
 .edit-hint { font-size: 11px; color: var(--text-muted); padding: .2rem .2rem 0; }
