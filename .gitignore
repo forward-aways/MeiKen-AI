@@ -32,3 +32,4 @@ node_modules/
 
 # Local project documentation (not for public repo)
 PROJECT_DOC.md
+*.log
