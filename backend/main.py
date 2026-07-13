@@ -254,3 +254,16 @@ def route_kb_delete(file_id: str, uid: int = Depends(current_user)):
 def route_search(q: str = "", uid: int = Depends(current_user)):
     if not q.strip(): return []
     return search_messages(uid, q.strip())
+
+# -- serve frontend (production) --
+
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+_frontend_dist = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")
+if os.path.isdir(_frontend_dist):
+    app.mount("/assets", StaticFiles(directory=os.path.join(_frontend_dist, "assets")), name="assets")
+
+    @app.get("/{full_path:path}")
+    def serve_spa(full_path: str):
+        return FileResponse(os.path.join(_frontend_dist, "index.html"))
