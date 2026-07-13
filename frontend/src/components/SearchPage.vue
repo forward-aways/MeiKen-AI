@@ -158,4 +158,9 @@ onMounted(async () => {
   padding: 32px 0;
   font-size: 13px;
 }
+
+@media (max-width: 768px) {
+  .top-bar { padding: .75rem .75rem; }
+  .search-page { padding: 12px 8px; }
+}
 </style>

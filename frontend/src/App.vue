@@ -23,6 +23,7 @@ const editingIdx = ref(null)
 const editText = ref('')
 const searchingQuery = ref('')
 const tempFileData = ref(null)
+const isMobile = ref(window.innerWidth <= 768)
 
 async function onTempFile(file) {
   if (!file) {
@@ -164,6 +165,10 @@ function regenerate(idx) {
 async function openConv(cid) {
   profileMode.value = false
   searchMode.value = false
+  if (isMobile.value && !sidebarCollapsed.value) {
+    sidebarCollapsed.value = true
+    showCollapsedWidget.value = true
+  }
   let d = await get('/conversations/' + cid)
   if (!d) return
   activeId.value = cid
@@ -218,9 +223,16 @@ function openProfile() {
 function toggleCollapse() {
   sidebarCollapsed.value = !sidebarCollapsed.value
   if (sidebarCollapsed.value) {
-    setTimeout(() => { showCollapsedWidget.value = true }, 400)
+    setTimeout(() => { showCollapsedWidget.value = true }, isMobile.value ? 300 : 400)
   } else {
     showCollapsedWidget.value = false
+  }
+}
+
+function onSidebarBackdrop() {
+  if (isMobile.value) {
+    sidebarCollapsed.value = true
+    setTimeout(() => { showCollapsedWidget.value = true }, 300)
   }
 }
 
@@ -262,6 +274,11 @@ function highlightAll() {
 }
 
 onMounted(() => {
+  if (isMobile.value) {
+    sidebarCollapsed.value = true
+    showCollapsedWidget.value = true
+  }
+  window.addEventListener('resize', onWindowResize)
   applyTheme(theme.value)
   checkAuth()
   const hash = window.location.hash.slice(1)
@@ -270,6 +287,20 @@ onMounted(() => {
     localStorage.setItem('mk-reset-token', params.get('reset-token'))
   }
 })
+
+function onWindowResize() {
+  const mobile = window.innerWidth <= 768
+  if (mobile !== isMobile.value) {
+    isMobile.value = mobile
+    if (mobile) {
+      sidebarCollapsed.value = true
+      showCollapsedWidget.value = true
+    } else {
+      sidebarCollapsed.value = localStorage.getItem('sidebar_collapsed') === '1'
+      showCollapsedWidget.value = sidebarCollapsed.value
+    }
+  }
+}
 
 watch([() => msgs.value.length, busy], ([len, b]) => {
   if (!b && len > 0) highlightAll()
@@ -294,6 +325,8 @@ watch(locale, () => {
         @open-profile="openProfile()"
       />
     </aside>
+
+    <div v-if="isMobile && !sidebarCollapsed" class="sidebar-backdrop" @click="onSidebarBackdrop"></div>
 
     <section class="main">
       <SearchPage
@@ -484,5 +517,12 @@ watch(locale, () => {
   font-size: 13px;
   padding: 8px 0;
   animation: fadeIn .3s var(--ease);
+}
+
+@media (max-width: 768px) {
+  .collapsed-group { top: .55rem; left: 10px; }
+  .collapsed-header button { width: 38px; height: 38px; }
+  .scroll-btn { bottom: 80px; right: 12px; width: 40px; height: 40px; }
+  .top-bar { padding: .6rem .75rem; }
 }
 </style>

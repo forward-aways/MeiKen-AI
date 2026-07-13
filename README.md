@@ -294,6 +294,72 @@ POST /api/chat/{conversation_id}
 | `conversations` | 对话记录 | `id` `user_id` `title` `created_at` `updated_at` |
 | `messages` | 消息内容 | `id` `conversation_id` `role` `content` `created_at` |
 
+## 部署
+
+### Nginx 反向代理
+
+项目自带 Nginx 配置文件 `nginx/meikenai.conf`，将 8080 端口反向代理到 FastAPI 后端（127.0.0.1:8000）。
+
+```bash
+# 复制配置到 Nginx
+sudo cp nginx/meikenai.conf /etc/nginx/sites-available/meikenai.conf
+sudo ln -sf /etc/nginx/sites-available/meikenai.conf /etc/nginx/sites-enabled/
+
+# 测试并重载
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+> 注意：域名未备案时，国内云厂商会拦截 80/443/8080 等常见 Web 端口。可临时使用 IP 直连访问，如 `http://<服务器IP>:8080`。
+
+### 后端 systemd 服务（开机自启 + 崩溃重启）
+
+```bash
+sudo tee /etc/systemd/system/meikenai.service > /dev/null << 'EOF'
+[Unit]
+Description=MeiKen AI Backend
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/ai-project/MeiKen-AI
+ExecStart=/home/ubuntu/.local/bin/uv run python main.py backend
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable meikenai
+sudo systemctl start meikenai
+```
+
+常用管理命令：
+
+| 操作 | 命令 |
+|---|---|
+| 查看状态 | `sudo systemctl status meikenai` |
+| 查看日志 | `sudo journalctl -u meikenai -f` |
+| 重启 | `sudo systemctl restart meikenai` |
+| 停止 | `sudo systemctl stop meikenai` |
+
+### 更新部署
+
+修改代码后的重新部署流程：
+
+```bash
+# 后端：改完代码重启服务即可
+sudo systemctl restart meikenai
+
+# 前端：重新构建（Nginx 无需重启，浏览器 Ctrl+Shift+R 强制刷新）
+cd ~/ai-project/MeiKen-AI/frontend && npm run build
+
+# Nginx 配置变更
+sudo nginx -t && sudo systemctl reload nginx
+```
+
 ## License
 
 MIT

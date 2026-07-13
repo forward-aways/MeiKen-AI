@@ -276,4 +276,11 @@ watch(() => props.modelValue, async () => {
 .stop-btn { flex-shrink: 0; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; border: 1.5px solid var(--danger); background: transparent; color: var(--danger); cursor: pointer; transition: all .2s var(--ease); }
 .stop-btn:hover { background: var(--danger-soft); transform: scale(1.06); }
 .stop-btn:active { transform: scale(.92); transition-duration: .08s; }
+
+@media (max-width: 768px) {
+  .input-row { padding: .5rem .75rem .9rem; }
+  .input-inner textarea { padding: .55rem .75rem; font-size: 14px; min-height: 48px; }
+  .kb-dropdown { width: calc(100vw - 32px); max-width: 280px; }
+  .search-capsule { padding: 4px 10px; font-size: 11.5px; }
+}
 </style>

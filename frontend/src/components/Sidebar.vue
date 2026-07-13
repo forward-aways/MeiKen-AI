@@ -277,4 +277,10 @@ watch(systemPrompt, v => { localStorage.setItem('mk-sysprompt', v) })
 .lang-pill.active { background: var(--surface); color: var(--text); font-weight: 650; box-shadow: var(--shadow-xs); }
 .logout-btn { width: 100%; padding: .4rem; margin-top: .25rem; border-radius: 7px; border: none; background: transparent; color: var(--danger); font-size: 12.5px; cursor: pointer; text-align: center; font-family: var(--font); transition: background .15s; }
 .logout-btn:hover { background: var(--danger-soft); }
+
+@media (max-width: 768px) {
+  .sidebar-inner { width: 276px; padding: .85rem .75rem; }
+  .sidebar-toggle { width: 34px; height: 34px; right: .5rem; top: .45rem; }
+  .search-toggle { width: 34px; height: 34px; right: 2.75rem; top: .45rem; }
+}
 </style>

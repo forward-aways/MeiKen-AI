@@ -277,4 +277,9 @@ onMounted(() => {
   margin: 0 6px;
   color: var(--text-muted);
 }
+
+@media (max-width: 768px) {
+  .login-page { padding: 1rem; }
+  .login-card { padding: 2rem 1.25rem; }
+}
 </style>

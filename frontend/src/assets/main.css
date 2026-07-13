@@ -42,6 +42,44 @@ body {
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg) }
 .sidebar.collapsed { width: 0; min-width: 0; border-right-width: 0; pointer-events: none }
 
+/* ===== Mobile (<=768px) ===== */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: -100%;
+    width: 276px;
+    min-width: 276px;
+    height: 100%;
+    height: 100dvh;
+    z-index: 101;
+    transition: left .3s cubic-bezier(.22,.61,.36,1);
+  }
+  .sidebar:not(.collapsed) {
+    left: 0;
+    box-shadow: 4px 0 30px rgba(0,0,0,.18);
+    border-right-width: 1px;
+  }
+  .sidebar.collapsed {
+    left: -100%;
+    width: 276px;
+    min-width: 276px;
+    border-right-width: 0;
+    pointer-events: none;
+  }
+  .main { width: 100%; }
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.35);
+    z-index: 100;
+    animation: fadeIn .2s ease;
+  }
+  [data-theme="dark"] .sidebar-backdrop { background: rgba(0,0,0,.55); }
+  .chat-area { padding: .6rem .75rem; }
+  .collapsed-group { top: .55rem; left: 10px; }
+}
+
 /* Buttons */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;

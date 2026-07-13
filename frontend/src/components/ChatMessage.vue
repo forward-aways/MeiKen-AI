@@ -321,4 +321,10 @@ function truncate(s, max) {
 .edit-send-btn { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: none; background: var(--accent); color: #fff; cursor: pointer; flex-shrink: 0; }
 .edit-send-btn:hover { background: var(--accent-hover); }
 .edit-send-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+@media (max-width: 768px) {
+  .msg { gap: 10px; margin-bottom: 1rem; }
+  .bubble { font-size: 14.5px; }
+  .msg.user .bubble { max-width: 88%; }
+}
 </style>

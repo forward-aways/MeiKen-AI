@@ -119,4 +119,14 @@ defineExpose({ runTypewriter })
 .chip { padding: .55rem 1.15rem; border-radius: var(--radius-xl); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-secondary); font-size: 13px; cursor: pointer; transition: all .2s var(--ease); font-family: var(--font); user-select: none; }
 .chip:hover { border-color: var(--accent); color: var(--accent); box-shadow: var(--shadow-sm); transform: translateY(-2px); }
 .chip:active { transform: scale(.96); transition-duration: .08s; }
+
+@media (max-width: 768px) {
+  .welcome { padding: 6vh 1rem 4vh; }
+  .icon { width: 64px; height: 64px; margin-bottom: 1.25rem; }
+  .welcome h2 { font-size: 22px; }
+  .welcome p { font-size: 13.5px; margin-bottom: 1.5rem; }
+  .landing-input textarea { padding: .8rem .8rem .2rem; font-size: 14.5px; min-height: 64px; }
+  .chip { padding: .45rem .9rem; font-size: 12px; }
+  .chips { gap: 8px; margin-top: 1.5rem; }
+}
 </style>

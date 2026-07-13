@@ -584,4 +584,12 @@ onMounted(() => {
   border-radius: 8px;
   background: var(--bg);
 }
+
+@media (max-width: 768px) {
+  .preset-grid { grid-template-columns: repeat(4, 1fr); }
+  .profile-page { padding: 16px 8px; }
+  .profile-card { padding: 14px; }
+  .profile-hero { padding: 16px 0 8px; }
+  .avatar-lg { width: 80px; height: 80px; }
+}
 </style>
