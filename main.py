@@ -13,7 +13,7 @@ def run_backend():
     reload = "--reload" in sys.argv
     args = [
         sys.executable, "-m", "uvicorn", "backend.main:app",
-        "--host", "127.0.0.1", "--port", "8000",
+        "--host", "0.0.0.0", "--port", "8000",
     ]
     if reload:
         args.append("--reload")
@@ -33,8 +33,8 @@ def run_frontend():
         subprocess.run([npm_cmd, "run", "build"], cwd=frontend_dir, check=True)
 
     os.chdir(dist_dir)
-    print("Frontend → http://127.0.0.1:3000\n")
-    subprocess.run([sys.executable, "-m", "http.server", "3000"])
+    print("Frontend -> http://0.0.0.0:3000\n")
+    subprocess.run([sys.executable, "-m", "http.server", "3000", "--bind", "0.0.0.0"])
 
 
 if __name__ == "__main__":
