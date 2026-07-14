@@ -188,6 +188,10 @@ function newChat() {
   editingIdx.value = null
   searchMode.value = false
   profileMode.value = false
+  if (isMobile.value && !sidebarCollapsed.value) {
+    sidebarCollapsed.value = true
+    showCollapsedWidget.value = true
+  }
   if (welcomeRef.value) welcomeRef.value.runTypewriter()
 }
 
@@ -218,6 +222,10 @@ function onScroll() {
 
 function openProfile() {
   profileMode.value = true
+  if (isMobile.value && !sidebarCollapsed.value) {
+    sidebarCollapsed.value = true
+    showCollapsedWidget.value = true
+  }
 }
 
 function toggleCollapse() {
@@ -321,7 +329,7 @@ watch(locale, () => {
       <Sidebar
         @new-chat="newChat"
         @open-conv="openConv"
-        @search-mode="searchMode = true"
+        @search-mode="searchMode = true; if (isMobile) { sidebarCollapsed = true; showCollapsedWidget = true }"
         @open-profile="openProfile()"
       />
     </aside>

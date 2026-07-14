@@ -47,7 +47,7 @@ body {
   .sidebar {
     position: fixed;
     top: 0;
-    left: -100%;
+    left: -280px;
     width: 276px;
     min-width: 276px;
     height: 100%;
@@ -61,7 +61,7 @@ body {
     border-right-width: 1px;
   }
   .sidebar.collapsed {
-    left: -100%;
+    left: -280px;
     width: 276px;
     min-width: 276px;
     border-right-width: 0;
@@ -77,7 +77,6 @@ body {
   }
   [data-theme="dark"] .sidebar-backdrop { background: rgba(0,0,0,.55); }
   .chat-area { padding: .6rem .75rem; }
-  .collapsed-group { top: .55rem; left: 10px; }
 }
 
 /* Buttons */

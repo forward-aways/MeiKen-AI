@@ -125,7 +125,11 @@ defineExpose({ runTypewriter })
   .icon { width: 64px; height: 64px; margin-bottom: 1.25rem; }
   .welcome h2 { font-size: 22px; }
   .welcome p { font-size: 13.5px; margin-bottom: 1.5rem; }
-  .landing-input textarea { padding: .8rem .8rem .2rem; font-size: 14.5px; min-height: 64px; }
+  .landing-input textarea { padding: .8rem .6rem .2rem; font-size: 14.5px; min-height: 64px; }
+  .landing-toolbar { flex-wrap: wrap; gap: 5px; }
+  .landing-toolbar .toolbar-spacer { display: none; }
+  .landing-toolbar .search-capsule { padding: 4px 9px; font-size: 11px; }
+  .landing-toolbar .send-btn { width: 36px; height: 36px; }
   .chip { padding: .45rem .9rem; font-size: 12px; }
   .chips { gap: 8px; margin-top: 1.5rem; }
 }

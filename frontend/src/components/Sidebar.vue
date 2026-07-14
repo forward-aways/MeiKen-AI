@@ -28,13 +28,14 @@ const filteredConvs = computed(() => {
 })
 
 function toggleCollapse() {
+  const delay = window.innerWidth <= 768 ? 300 : 250
   if (sidebarCollapsed.value) {
     showCollapsedWidget.value = false
     sidebarCollapsed.value = false
   } else {
     sidebarCollapsed.value = true
     showCollapsedWidget.value = false
-    setTimeout(() => { showCollapsedWidget.value = true }, 250)
+    setTimeout(() => { showCollapsedWidget.value = true }, delay)
   }
 }
 

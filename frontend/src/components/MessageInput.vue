@@ -278,9 +278,12 @@ watch(() => props.modelValue, async () => {
 .stop-btn:active { transform: scale(.92); transition-duration: .08s; }
 
 @media (max-width: 768px) {
-  .input-row { padding: .5rem .75rem .9rem; }
-  .input-inner textarea { padding: .55rem .75rem; font-size: 14px; min-height: 48px; }
+  .input-row { padding: .5rem .5rem .8rem; }
+  .input-inner textarea { padding: .55rem .6rem; font-size: 14px; min-height: 48px; }
+  .input-toolbar { flex-wrap: wrap; gap: 5px; }
   .kb-dropdown { width: calc(100vw - 32px); max-width: 280px; }
-  .search-capsule { padding: 4px 10px; font-size: 11.5px; }
+  .search-capsule { padding: 4px 9px; font-size: 11px; }
+  .icon-btn, .send-btn { width: 34px; height: 34px; }
+  .toolbar-spacer { display: none; }
 }
 </style>
