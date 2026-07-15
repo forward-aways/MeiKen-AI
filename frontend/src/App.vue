@@ -24,6 +24,14 @@ const editText = ref('')
 const searchingQuery = ref('')
 const tempFileData = ref(null)
 const isMobile = ref(window.innerWidth <= 768)
+const disclaimerAgreed = ref(localStorage.getItem('mk-disclaimer') === '1')
+const disclaimerChecked = ref(false)
+
+function agreeDisclaimer() {
+  if (!disclaimerChecked.value) return
+  disclaimerAgreed.value = true
+  localStorage.setItem('mk-disclaimer', '1')
+}
 
 async function onTempFile(file) {
   if (!file) {
@@ -322,6 +330,24 @@ watch(locale, () => {
 </script>
 
 <template>
+  <div v-if="!disclaimerAgreed" class="disclaimer-overlay">
+    <div class="disclaimer-modal">
+      <div class="disclaimer-logo">
+        <svg viewBox="0 0 40 40" width="48" height="48" fill="none"><rect width="40" height="40" rx="10" style="fill:var(--accent)"/><path d="M9 29V12l11 12 11-12v17" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <h2>{{ t('disclaimerTitle') }}</h2>
+      <div class="disclaimer-body" v-html="t('disclaimerText').replace(/\n/g, '<br>')"></div>
+      <label class="disclaimer-check">
+        <input type="checkbox" v-model="disclaimerChecked" />
+        <span>{{ t('disclaimerAgree') }}</span>
+      </label>
+      <button class="btn primary wide" :disabled="!disclaimerChecked" @click="agreeDisclaimer">
+        {{ t('disclaimerBtn') }}
+      </button>
+    </div>
+  </div>
+
+  <template v-if="disclaimerAgreed">
   <LoginPage v-if="!authed" />
 
   <template v-if="authed">
@@ -384,6 +410,8 @@ watch(locale, () => {
           </div>
         </div>
 
+        <div class="ai-disclaimer" v-if="msgs.length">— {{ t('aiDisclaimer') }} —</div>
+
         <MessageInput
           v-if="msgs.length"
           :modelValue="input"
@@ -406,6 +434,7 @@ watch(locale, () => {
 
       <ProfilePage v-if="profileMode" @close="profileMode = false" />
     </section>
+  </template>
   </template>
 </template>
 
@@ -532,5 +561,86 @@ watch(locale, () => {
   .collapsed-header button { width: 38px; height: 38px; }
   .scroll-btn { bottom: 80px; right: 12px; width: 40px; height: 40px; }
   .top-bar { padding: .6rem .75rem; }
+}
+
+.disclaimer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0,0,0,.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.disclaimer-modal {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  max-width: 560px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 2.5rem 2rem;
+  animation: fadeSlide .35s var(--spring);
+}
+
+.disclaimer-logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.2rem;
+}
+
+.disclaimer-modal h2 {
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 1.2rem;
+  color: var(--text);
+}
+
+.disclaimer-body {
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+  max-height: 40vh;
+  overflow-y: auto;
+  padding-right: .5rem;
+}
+
+.disclaimer-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+  margin-bottom: 1.2rem;
+  user-select: none;
+}
+
+.disclaimer-check input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ai-disclaimer {
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  padding: .4rem 1rem .2rem;
+  flex-shrink: 0;
+  opacity: .7;
+}
+
+@media (max-width: 768px) {
+  .disclaimer-modal { padding: 1.5rem 1.2rem; }
+  .disclaimer-modal h2 { font-size: 18px; }
+  .disclaimer-body { font-size: 12.5px; max-height: 35vh; }
 }
 </style>

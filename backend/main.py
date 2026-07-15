@@ -27,7 +27,7 @@ from backend.auth import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    seed_admin(hash_password("admin123"))
+    seed_admin(hash_password(os.getenv("ADMIN_PASSWORD", "admin123")))
     yield
 
 app = FastAPI(title="MeiKen AI", version="2.0.0", lifespan=lifespan)
