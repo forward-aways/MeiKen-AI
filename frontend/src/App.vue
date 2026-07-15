@@ -633,7 +633,8 @@ watch(locale, () => {
   text-align: center;
   font-size: 11.5px;
   color: var(--text-muted);
-  padding: 0 1rem .2rem;
+  padding: 0 1rem .4rem;
+  margin-top: -.8rem;
   flex-shrink: 0;
   opacity: .7;
 }
