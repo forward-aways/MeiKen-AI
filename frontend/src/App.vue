@@ -410,8 +410,6 @@ watch(locale, () => {
           </div>
         </div>
 
-        <div class="ai-disclaimer" v-if="msgs.length">— {{ t('aiDisclaimer') }} —</div>
-
         <MessageInput
           v-if="msgs.length"
           :modelValue="input"
@@ -426,6 +424,8 @@ watch(locale, () => {
           @stop="stopGen"
           @tempFile="onTempFile"
         />
+
+        <div class="ai-disclaimer" v-if="msgs.length">— {{ t('aiDisclaimer') }} —</div>
 
         <button class="scroll-btn" v-if="!atBottom && msgs.length" @click="scroll(); atBottom = true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
