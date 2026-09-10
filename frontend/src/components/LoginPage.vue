@@ -81,7 +81,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { authed, user, t, loadConvs } from '../store.js'
+import { authed, user, t, loadAll } from '../store.js'
 
 const isLocal = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost'
 const API = import.meta.env.DEV
@@ -126,7 +126,7 @@ async function doAuth() {
     if (!r.ok) { authErr.value = d.detail || 'Error'; authBusy.value = false; return }
     user.value = d.user
     authed.value = true
-    await loadConvs()
+    await loadAll()
     authBusy.value = false
   } catch (e) { authErr.value = 'Connection error: ' + e.message; authBusy.value = false }
 }
@@ -197,10 +197,21 @@ onMounted(() => {
   max-width: 400px;
   padding: 2.5rem 2rem;
   border-radius: var(--radius-lg);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
+  border: 1px solid rgba(255,255,255,.7);
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
+    linear-gradient(180deg, rgba(255,255,255,.72), rgba(255,255,255,.45));
+  backdrop-filter: blur(36px) saturate(190%);
+  -webkit-backdrop-filter: blur(36px) saturate(190%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9), var(--shadow-lg);
   animation: fadeSlide .4s var(--spring);
+}
+[data-theme="dark"] .login-card {
+  border-color: rgba(255,255,255,.12);
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
+    linear-gradient(180deg, rgba(44,48,72,.75), rgba(30,33,52,.6));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.1), var(--shadow-lg);
 }
 @keyframes fadeSlide { from { opacity: 0; transform: translateY(36px); } to { opacity: 1; transform: translateY(0); } }
 

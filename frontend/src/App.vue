@@ -1,21 +1,26 @@
 <script setup>
 import { ref, reactive, computed, nextTick, onMounted, watch } from 'vue'
-import { authed, user, convs, activeId, msgs, input, busy, theme, locale, sidebarCollapsed, showCollapsedWidget, systemPrompt, searchEnabled, thinkingEnabled, ragEnabled, pinnedIds, t, applyTheme, setLocale, saveSystemPrompt, togglePin, loadConvs, checkAuth, logout, uploadTempFile, deleteTempFile } from './store.js'
+import { authed, user, convs, activeId, msgs, input, busy, theme, locale, sidebarCollapsed, showCollapsedWidget, systemPrompt, pinnedIds, agents, currentAgentId, currentAgent, setCurrentAgent, mode, view, setView, modelOverride, effectiveEffort, t, applyTheme, setLocale, saveSystemPrompt, togglePin, loadAll, loadAgents, checkAuth, logout, uploadTempFile, deleteTempFile, setContextTokens, addContextTokens } from './store.js'
 import { get, post, del as apiDel, fetchRaw } from './api.js'
 import { stripMd } from './md.js'
+import { log } from './logger.js'
 import LoginPage from './components/LoginPage.vue'
 import Sidebar from './components/Sidebar.vue'
+import TopBar from './components/TopBar.vue'
+import ActivityPanel from './components/ActivityPanel.vue'
 import ChatMessage from './components/ChatMessage.vue'
 import MessageInput from './components/MessageInput.vue'
-import WelcomeScreen from './components/WelcomeScreen.vue'
+import Dashboard from './components/Dashboard.vue'
 import SearchPage from './components/SearchPage.vue'
 import ProfilePage from './components/ProfilePage.vue'
+import KbPage from './components/KbPage.vue'
+import SkillsPage from './components/SkillsPage.vue'
+import AgentRun from './components/AgentRun.vue'
+import AgentConfigPage from './components/AgentConfigPage.vue'
 
 const atBottom = ref(true)
 const chatArea = ref(null)
 const welcomeRef = ref(null)
-const searchMode = ref(false)
-const profileMode = ref(false)
 const welcomeShow = ref(true)
 const convKey = ref(0)
 let abortCtrl = null
@@ -52,14 +57,105 @@ async function onTempFile(file) {
   }
 }
 
-async function send(txt, isRetry = false) {
+function applyEvent(ast, ev) {
+  if (ev.token) { ast.content += ev.token; ast.phase = 'generating'; return true }
+  if (ev.reasoning) { ast.reasoning = (ast.reasoning || '') + ev.reasoning; ast.phase = 'thinking'; return true }
+  if (ev.thinking_done) { ast.thinkingTime = ev.thinking_done; return true }
+  if (ev.tokens) { ast.tokens = ev.tokens; return true }
+  if (ev.status === 'searching') { searchingQuery.value = ev.query || ''; return true }
+  if (ev.status === 'searched') { searchingQuery.value = ''; if (ev.results) { ast.searchResults = ev.results; ast.searchQuery = ev.query } return true }
+  if (ev.status === 'rag_loaded') { ast.ragSources = ev.sources || []; return true }
+  if (ev.type === 'todo') { ast.todos = ev.todos; return true }
+  if (ev.type === 'tool_call') {
+    ast.toolCalls = ast.toolCalls || []
+    ast.toolCalls.push({ tool: ev.tool, args: ev.args, status: 'running', result: '' })
+    ast.phase = 'tool:' + ev.tool
+    return true
+  }
+  if (ev.type === 'tool_result') {
+    const tc = (ast.toolCalls || []).find((x) => x.tool === ev.tool && x.status === 'running')
+    if (tc) { tc.status = 'done'; tc.result = ev.result }
+    ast.phase = ''
+    return true
+  }
+  if (ev.status === 'sub_started') {
+    ast.subagents = ast.subagents || []
+    ast.subagents.push({ name: ev.subagent, task: ev.task, status: 'running' })
+    ast.phase = 'sub:' + ev.subagent
+    return true
+  }
+  if (ev.status === 'sub_done') {
+    const s = (ast.subagents || []).find((x) => x.name === ev.subagent)
+    if (s) s.status = 'done'
+    ast.phase = ''
+    return true
+  }
+  if (ev.type === 'approval_request') {
+    ast.approvals = ast.approvals || []
+    ast.approvals.push({ action_id: ev.action_id, tool: ev.tool, args: ev.args, allowed: ev.allowed, status: 'pending' })
+    ast.pendingApproval = true
+    ast.phase = 'approval'
+    return true
+  }
+  if (ev.status === 'run_end') {
+    ast.interrupted = ev.interrupted; ast.phase = ''
+    if (ev.tokens) addContextTokens(ev.tokens)
+    return true
+  }
+  if (ev.error) { log.error('SSE error |', ev.error); ast.content = '⚠ ' + ev.error; ast.error = true; ast.phase = ''; return true }
+  if (ev.done) { if (ev.tokens) ast.tokens = ev.tokens; return true }
+  return false
+}
+
+async function readStream(r, ast, onDone) {
+  const reader = r.body.getReader()
+  const dec = new TextDecoder()
+  let buf = ''
+  while (true) {
+    let { done, value } = await reader.read()
+    if (done) break
+    buf += dec.decode(value, { stream: true })
+    let lines = buf.split('\n'); buf = lines.pop() || ''
+    for (let l of lines) {
+      if (!l.startsWith('data:')) continue
+      let ev
+      try { ev = JSON.parse(l.slice(5).trim()) } catch { continue }
+      if (applyEvent(ast, ev)) { await nextTick(); if (atBottom.value) scroll() }
+    }
+  }
+  if (onDone) onDone()
+}
+
+async function handleApproval(msg, approval, decision, editedArgs, message) {
+  const ap = (msg.approvals || []).find((a) => a.action_id === approval.action_id)
+  if (ap) ap.status = decision
+  if (!(msg.approvals || []).some((a) => a.status === 'pending')) msg.pendingApproval = false
+  msg.streaming = true
+  try {
+    let r = await fetchRaw('/approvals/' + approval.action_id, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision, edited_args: editedArgs, message })
+    })
+    await readStream(r, msg)
+  } catch (e) {
+    log.error('approval request failed |', e)
+    msg.content += '\n⚠ ' + (e.message || t('err'))
+  } finally {
+    msg.streaming = false
+    await nextTick(); if (atBottom.value) scroll()
+    setTimeout(() => loadAll(), 0)
+  }
+}
+
+async function send(txt, isRetry = false, imageIds = []) {
   let msg = (txt || '').trim()
-  if (!msg || busy.value) return
+  if ((!msg && !imageIds.length) || busy.value) return
   if (!activeId.value) {
     let d = await post('/conversations', { title: t('title') })
     if (!d) return
     activeId.value = d.id
-    await loadConvs()
+await loadAll()
   }
   let cid = activeId.value
   input.value = ''
@@ -67,6 +163,7 @@ async function send(txt, isRetry = false) {
   let useTempFile = tempFileData.value
   if (!isRetry) {
     let userMsg = { role: 'user', content: msg }
+    if (imageIds.length) userMsg.images = [...imageIds]
     if (useTempFile) userMsg.tempFile = useTempFile.file.filename
     msgs.value.push(userMsg)
   }
@@ -77,9 +174,17 @@ async function send(txt, isRetry = false) {
   msgs.value.push(ast)
   await nextTick(); if (atBottom.value) scroll()
   try {
-    let payload = { message: msg, system_prompt: systemPrompt.value, enable_search: searchEnabled.value, enable_thinking: thinkingEnabled.value, enable_rag: ragEnabled.value }
+    let payload = {
+      message: msg,
+      image_ids: imageIds,
+      system_prompt: systemPrompt.value,
+      agent_id: currentAgentId.value,
+      model: modelOverride.value || null,
+      thinking: effectiveEffort().thinking,
+      reasoning_effort: effectiveEffort().effort,
+      mode: mode.value
+    }
     if (useTempFile) {
-      payload.enable_rag = true
       payload.rag_files = [useTempFile.file.id]
     }
     let r = await fetchRaw('/chat/' + cid, {
@@ -88,34 +193,14 @@ async function send(txt, isRetry = false) {
       body: JSON.stringify(payload),
       signal: ctrl.signal
     })
-    let reader = r.body.getReader()
-    let dec = new TextDecoder()
-    let buf = ''
-    while (true) {
-      let { done, value } = await reader.read()
-      if (done) break
-      buf += dec.decode(value, { stream: true })
-      let lines = buf.split('\n'); buf = lines.pop() || ''
-      for (let l of lines) {
-        if (!l.startsWith('data:')) continue
-        let ev = JSON.parse(l.slice(5).trim())
-        if (ev.token) { ast.content += ev.token; await nextTick(); if (atBottom.value) scroll() }
-        else if (ev.reasoning) { ast.reasoning = (ast.reasoning || '') + ev.reasoning; await nextTick(); if (atBottom.value) scroll() }
-        else if (ev.thinking_done) { ast.thinkingTime = ev.thinking_done }
-        else if (ev.tokens) { ast.tokens = ev.tokens }
-        else if (ev.status === 'searching') { searchingQuery.value = ev.query || '' }
-        else if (ev.status === 'searched') { searchingQuery.value = ''; if (ev.results) { ast.searchResults = ev.results; ast.searchQuery = ev.query } }
-        else if (ev.status === 'rag_loaded') { ast.ragSources = ev.sources || [] }
-        else if (ev.error) { ast.content = '⚠ ' + ev.error; ast.error = true }
-        else if (ev.done) { if (ev.tokens) ast.tokens = ev.tokens }
-      }
-    }
+    await readStream(r, ast)
     if (atBottom.value) { await nextTick(); scroll() }
   } catch (e) {
     if (e.name === 'AbortError') {
       if (ast.content) ast.content += '\n\n*[' + t('stopped') + ']*'
       else ast.content = '*[' + t('stopped') + ']*'
     } else {
+      log.error('chat request failed |', e)
       ast.content = '⚠ ' + t('err') + ' ' + e.message
       ast.error = true
     }
@@ -130,7 +215,7 @@ async function send(txt, isRetry = false) {
     await nextTick(); scroll()
     requestAnimationFrame(() => { requestAnimationFrame(() => { if (atBottom.value) scroll() }) })
   }
-  setTimeout(() => { if (!ast.error) loadConvs() }, 0)
+  setTimeout(() => { if (!ast.error) loadAll() }, 0)
 }
 
 function stopGen() {
@@ -171,8 +256,7 @@ function regenerate(idx) {
 }
 
 async function openConv(cid) {
-  profileMode.value = false
-  searchMode.value = false
+  setView('chat')
   if (isMobile.value && !sidebarCollapsed.value) {
     sidebarCollapsed.value = true
     showCollapsedWidget.value = true
@@ -181,6 +265,7 @@ async function openConv(cid) {
   if (!d) return
   activeId.value = cid
   msgs.value = d.messages || []
+  setContextTokens((d.messages || []).reduce((s, m) => s + (m.tokens || 0), 0))
   welcomeShow.value = false
   convKey.value++
   await nextTick()
@@ -192,10 +277,10 @@ function newChat() {
   activeId.value = null
   msgs.value = []
   input.value = ''
+  setContextTokens(0)
   welcomeShow.value = true
   editingIdx.value = null
-  searchMode.value = false
-  profileMode.value = false
+  setView('chat')
   if (isMobile.value && !sidebarCollapsed.value) {
     sidebarCollapsed.value = true
     showCollapsedWidget.value = true
@@ -212,7 +297,7 @@ async function delConv(cid) {
     welcomeShow.value = true
     if (welcomeRef.value) welcomeRef.value.runTypewriter()
   }
-  await loadConvs()
+  loadAll()
 }
 
 function scroll() {
@@ -229,7 +314,15 @@ function onScroll() {
 }
 
 function openProfile() {
-  profileMode.value = true
+  setView('profile')
+  if (isMobile.value && !sidebarCollapsed.value) {
+    sidebarCollapsed.value = true
+    showCollapsedWidget.value = true
+  }
+}
+
+function openAgents() {
+  setView('agents')
   if (isMobile.value && !sidebarCollapsed.value) {
     sidebarCollapsed.value = true
     showCollapsedWidget.value = true
@@ -297,6 +390,7 @@ onMounted(() => {
   window.addEventListener('resize', onWindowResize)
   applyTheme(theme.value)
   checkAuth()
+  loadAgents()
   const hash = window.location.hash.slice(1)
   const params = new URLSearchParams(hash)
   if (params.get('reset-token')) {
@@ -327,6 +421,14 @@ watch(locale, () => {
     welcomeRef.value.runTypewriter()
   }
 })
+
+watch(view, () => {
+  const main = document.querySelector('.main')
+  if (!main) return
+  main.classList.remove('view-anim')
+  void main.offsetWidth
+  main.classList.add('view-anim')
+})
 </script>
 
 <template>
@@ -351,11 +453,14 @@ watch(locale, () => {
   <LoginPage v-if="!authed" />
 
   <template v-if="authed">
+    <TopBar />
+
+    <div class="shell-body">
     <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
       <Sidebar
         @new-chat="newChat"
         @open-conv="openConv"
-        @search-mode="searchMode = true; if (isMobile) { sidebarCollapsed = true; showCollapsedWidget = true }"
+        @search-mode="setView('search'); if (isMobile) { sidebarCollapsed = true; showCollapsedWidget = true }"
         @open-profile="openProfile()"
       />
     </aside>
@@ -364,19 +469,19 @@ watch(locale, () => {
 
     <section class="main">
       <SearchPage
-        v-if="searchMode"
-        @close="searchMode = false"
-        @open-conv="(cid) => { searchMode = false; openConv(cid) }"
+        v-if="view === 'search'"
+        @close="setView('chat')"
+        @open-conv="(cid) => { setView('chat'); openConv(cid) }"
       />
 
-      <template v-if="!searchMode && !profileMode">
-        <div class="collapsed-group" v-if="showCollapsedWidget">
+      <template v-if="view === 'chat'">
+        <div class="collapsed-group" v-if="isMobile && showCollapsedWidget">
           <svg viewBox="0 0 40 40" width="26" height="26" fill="none"><rect width="40" height="40" rx="10" style="fill:var(--accent)"/><path d="M9 29V12l11 12 11-12v17" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <div class="collapsed-header">
+          <div class="collapsed-header glass-pop">
             <button @click="toggleCollapse()" :title="t('expand')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
-            <button @click="searchMode = true; nextTick(() => {})" :title="t('search')">
+            <button @click="setView('search'); nextTick(() => {})" :title="t('search')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             </button>
             <button @click="newChat" :title="t('newChat')">
@@ -385,11 +490,9 @@ watch(locale, () => {
           </div>
         </div>
 
-        <div class="top-bar" v-if="!sidebarCollapsed"><div style="flex:1"></div></div>
-
         <div class="chat-area" ref="chatArea" @scroll="onScroll">
           <div class="chat-inner">
-            <WelcomeScreen v-if="!msgs.length && welcomeShow" ref="welcomeRef" @send="send" />
+            <Dashboard v-if="!msgs.length && welcomeShow" ref="welcomeRef" @send="send" @tempFile="onTempFile" />
 
             <ChatMessage
               v-for="(m, i) in msgs"
@@ -401,6 +504,9 @@ watch(locale, () => {
               @send="(payload) => send(payload?.content || m.content, true)"
               @delete="deleteMsg(i, m.id)"
             />
+            <template v-for="(m, i) in msgs" :key="'run-' + convKey + '-' + i">
+              <AgentRun v-if="m.role === 'assistant'" :msg="m" @approve="handleApproval" />
+            </template>
 
             <div class="typing" v-if="busy"><span></span><span></span><span></span></div>
             <div class="searching-bar" v-if="searchingQuery">
@@ -415,25 +521,27 @@ watch(locale, () => {
           :modelValue="input"
           :disabled="busy"
           :placeholder="t('ph')"
-          :searchEnabled="searchEnabled.value"
-          :thinkingEnabled="thinkingEnabled.value"
           @update:modelValue="(v) => { input = v }"
-          @update:searchEnabled="(v) => { searchEnabled.value = v }"
-          @update:thinkingEnabled="(v) => { thinkingEnabled.value = v }"
-          @send="send(input)"
+          @send="(ids) => send(input, false, ids)"
           @stop="stopGen"
           @tempFile="onTempFile"
         />
 
         <div class="ai-disclaimer" v-if="msgs.length">— {{ t('aiDisclaimer') }} —</div>
 
-        <button class="scroll-btn" v-if="!atBottom && msgs.length" @click="scroll(); atBottom = true">
+        <button class="scroll-btn glass-pop" :class="{ 'with-activity': view === 'chat' && !isMobile }" v-if="!atBottom && msgs.length" @click="scroll(); atBottom = true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
         </button>
       </template>
 
-      <ProfilePage v-if="profileMode" @close="profileMode = false" />
+      <ProfilePage v-if="view === 'profile'" @close="setView('chat')" />
+      <AgentConfigPage v-if="view === 'agents'" @close="setView('chat')" />
+      <KbPage v-if="view === 'kb'" />
+      <SkillsPage v-if="view === 'skills'" @close="setView('chat')" />
     </section>
+
+    <ActivityPanel v-if="view === 'chat'" @approve="handleApproval" />
+    </div>
   </template>
   </template>
 </template>
@@ -441,7 +549,7 @@ watch(locale, () => {
 <style>
 .collapsed-group {
   position: fixed;
-  top: .85rem;
+  top: 52px;
   left: 20px;
   z-index: 100;
   display: flex;
@@ -463,11 +571,8 @@ watch(locale, () => {
   display: flex;
   align-items: center;
   gap: 2px;
-  background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 3px;
-  box-shadow: var(--shadow-md);
 }
 
 .collapsed-header button {
@@ -489,47 +594,35 @@ watch(locale, () => {
   color: var(--text);
 }
 
-.top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 1rem 1.5rem;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: transparent;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: none;
-}
-
 .chat-area {
   flex: 1;
   overflow-y: auto;
-  padding: 1rem 1.5rem;
+  margin-top: -52px; /* stretch under the floating top bar so messages fade out at the very top */
+  padding: calc(52px + 1rem) 1.5rem 1rem;
   scroll-behavior: smooth;
+  /* messages dissolve inside the top bar region and vanish exactly at the very top */
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,.3) 18px, rgba(0,0,0,.78) 42px, #000 60px);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,.3) 18px, rgba(0,0,0,.78) 42px, #000 60px);
 }
 
 .chat-inner {
-  max-width: 800px;
+  max-width: 860px;
   margin: 0 auto;
+  width: 100%;
 }
 
 .scroll-btn {
   position: fixed;
-  bottom: 90px;
+  bottom: 175px; /* floats just above the input box */
   right: 30px;
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  border: 1px solid var(--border-strong);
-  background: var(--surface);
   color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: var(--shadow-md);
   z-index: 20;
   transition: all .2s var(--ease);
   animation: fadeIn .2s var(--ease);
@@ -540,6 +633,8 @@ watch(locale, () => {
   color: var(--accent);
   transform: translateY(-2px);
 }
+.scroll-btn.with-activity { right: 300px; }
+@media (max-width: 1024px) { .scroll-btn.with-activity { right: 30px; } }
 
 @keyframes fadeIn {
   from { opacity: 0; }
@@ -559,8 +654,12 @@ watch(locale, () => {
 @media (max-width: 768px) {
   .collapsed-group { top: .55rem; left: 10px; }
   .collapsed-header button { width: 38px; height: 38px; }
-  .scroll-btn { bottom: 80px; right: 12px; width: 40px; height: 40px; }
-  .top-bar { padding: .6rem .75rem; }
+  .scroll-btn { bottom: 150px; right: 12px; width: 40px; height: 40px; }
+  .chat-area {
+    margin-top: -48px; padding: calc(48px + .6rem) .75rem .6rem;
+    mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,.3) 16px, rgba(0,0,0,.78) 38px, #000 54px);
+    -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,.3) 16px, rgba(0,0,0,.78) 38px, #000 54px);
+  }
 }
 
 .disclaimer-overlay {

@@ -10,9 +10,60 @@ export const activeId = ref(null)
 export const msgs = ref([])
 export const input = ref('')
 export const busy = ref(false)
-export const searchEnabled = ref(false)
-export const thinkingEnabled = ref(false)
-export const ragEnabled = ref(false)
+export const agents = ref([])
+export const currentAgentId = ref(null)
+export const mode = ref(localStorage.getItem('mk-mode') || 'general')  // code | work | general
+export const MODE_DEFAULT_AGENTS = { code: 'coder', work: 'general', general: 'general' }
+export const view = ref('chat')  // chat | skills | kb | agents | profile | search
+export function setView(v) { view.value = v }
+
+// Model / thinking capsules (persisted).
+export const modelOverride = ref(localStorage.getItem('mk-model') || null)  // null(follow agent) | model name
+export const thinkMode = ref(localStorage.getItem('mk-thinkmode') || 'fast') // fast | standard | deep
+export const effortSel = ref(localStorage.getItem('mk-effort') || 'mid')     // off | low | mid | high
+export const providers = ref([])  // [{id,name,base_url,key_configured,key_masked,deepseek_compat,models,is_builtin,enabled}]
+
+const THINK_EFFORT = { fast: 'low', standard: 'high', deep: 'max' }
+const EFFORT_OVERRIDE = { low: 'low', high: 'max' }
+
+export function effectiveEffort() {
+  if (effortSel.value === 'off') return { thinking: false, effort: null }
+  if (effortSel.value === 'mid') return { thinking: true, effort: THINK_EFFORT[thinkMode.value] || 'high' }
+  return { thinking: true, effort: EFFORT_OVERRIDE[effortSel.value] || 'high' }
+}
+
+export async function loadProviders() {
+  const d = await get('/providers')
+  if (d) providers.value = d
+}
+
+/** Model list grouped by provider for the capsule menus (only enabled providers). */
+export const modelGroups = computed(() => {
+  return providers.value
+    .filter((p) => p.enabled)
+    .map((p) => ({ ...p, models: p.models || [] }))
+})
+
+export function setModelOverride(m) {
+  modelOverride.value = m || null
+  localStorage.setItem('mk-model', m || '')
+}
+
+export function setThinkMode(v) {
+  thinkMode.value = v
+  localStorage.setItem('mk-thinkmode', v)
+}
+
+export function setEffortSel(v) {
+  effortSel.value = v
+  localStorage.setItem('mk-effort', v)
+}
+
+// Expert-graph node positions (agentId -> {x, y} in 900x560 space), persisted.
+export const graphPos = reactive(JSON.parse(localStorage.getItem('mk-graphpos') || '{}'))
+export function saveGraphPos() {
+  localStorage.setItem('mk-graphpos', JSON.stringify(graphPos))
+}
 export const kbFiles = ref([])
 export let abortCtrl = null
 
@@ -20,6 +71,16 @@ export const theme = ref(localStorage.getItem('mk-theme') || 'light')
 export const locale = ref(localStorage.getItem('mk-locale') || 'zh')
 export const sidebarCollapsed = ref(false)
 export const showCollapsedWidget = ref(false)
+
+// Context usage meter: cumulative tokens of the active conversation.
+export const CONTEXT_WINDOW = 1_000_000  // DeepSeek V4 (flash & pro) 1M-token context
+export const contextTokens = ref(0)
+export function setContextTokens(n) {
+  contextTokens.value = n || 0
+}
+export function addContextTokens(n) {
+  contextTokens.value += n || 0
+}
 
 export const systemPrompt = ref(localStorage.getItem('mk-sysprompt') || '')
 export const pinnedIds = ref(new Set(JSON.parse(localStorage.getItem('mk-pinned') || '[]')))
@@ -59,6 +120,10 @@ export async function loadConvs() {
   if (d) convs.value = d
 }
 
+export async function loadAll() {
+  await Promise.all([loadConvs(), loadProviders()])
+}
+
 export async function loadKBFiles() {
   const d = await get('/kb/files')
   if (d) kbFiles.value = d
@@ -91,8 +156,39 @@ export async function uploadTempFile(file) {
   return null
 }
 
+export async function uploadImage(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const r = await fetch(API_BASE + '/images', { method: 'POST', body: formData, credentials: 'include' })
+  if (r.ok) return await r.json()
+  const err = await r.json().catch(() => ({}))
+  throw new Error(err.detail || 'upload failed')
+}
+
 export async function deleteTempFile(fileId) {
   await del('/kb/files/' + fileId)
+}
+
+export async function loadAgents() {
+  const d = await get('/agents')
+  if (d) agents.value = d
+}
+
+export function setMode(v) {
+  if (!MODE_DEFAULT_AGENTS[v]) return
+  mode.value = v
+  localStorage.setItem('mk-mode', v)
+}
+
+export function currentAgent() {
+  const sel = agents.value.find((a) => a.id === currentAgentId.value)
+  if (sel) return sel
+  const def = agents.value.find((a) => a.name === MODE_DEFAULT_AGENTS[mode.value])
+  return def || agents.value.find((a) => a.name === 'general')
+}
+
+export function setCurrentAgent(id) {
+  currentAgentId.value = id || null
 }
 
 const isLocal = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost'

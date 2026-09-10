@@ -79,7 +79,7 @@ def extract_text(filepath: str, filename: str) -> str:
             return f.read()
 
 
-def ingest_document(filepath: str, filename: str, file_id: str, scope: str = "temp"):
+def ingest_document(filepath: str, filename: str, file_id: str, scope: str = "temp", user_id: int = 0):
     """Extract text, split into chunks, and store in Chroma vector DB."""
     text = extract_text(filepath, filename)
     if not text.strip():
@@ -89,7 +89,7 @@ def ingest_document(filepath: str, filename: str, file_id: str, scope: str = "te
     docs = [
         Document(
             page_content=chunk,
-            metadata={"file_id": file_id, "filename": filename, "scope": scope},
+            metadata={"file_id": file_id, "filename": filename, "scope": scope, "user_id": user_id},
         )
         for chunk in chunks
     ]
@@ -97,15 +97,17 @@ def ingest_document(filepath: str, filename: str, file_id: str, scope: str = "te
     return len(chunks)
 
 
-def search_relevant(query: str, scope: str = None, k: int = 4, file_ids: list = None):
-    """Search for relevant document chunks. If scope is set, filter by it. If file_ids is set, filter by file_id."""
+def search_relevant(query: str, scope: str = None, k: int = 4, file_ids: list = None, user_id: int = None):
+    """Search for relevant document chunks, always scoped to the requesting user."""
     vs = _get_vectorstore()
+    filters = {}
+    if user_id is not None:
+        filters["user_id"] = user_id
     if file_ids:
-        filter_dict = {"file_id": {"$in": file_ids}}
+        filters["file_id"] = {"$in": file_ids}
     elif scope:
-        filter_dict = {"scope": scope}
-    else:
-        filter_dict = None
+        filters["scope"] = scope
+    filter_dict = filters or None
     results = vs.similarity_search_with_relevance_scores(query, k=k, filter=filter_dict)
     return [
         {

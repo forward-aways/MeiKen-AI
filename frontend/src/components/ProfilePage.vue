@@ -1,6 +1,6 @@
 <script setup>
 import { ref, reactive, nextTick, onMounted } from 'vue'
-import { user, t, convs } from '../store.js'
+import { user, t, convs, theme, locale, applyTheme, setLocale } from '../store.js'
 import { put } from '../api.js'
 
 const emit = defineEmits(['close'])
@@ -164,17 +164,17 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="top-bar">
-    <button class="btn" @click="$emit('close')" title="Back" style="padding:.35rem .5rem;width:34px;height:34px">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-    </button>
-    <span style="font-size:16px;font-weight:600;margin-left:8px">{{ t('profileTitle') }}</span>
-    <div style="flex:1"></div>
-    <button class="btn primary" @click="saveProfileText">{{ t('save') || 'Save' }}</button>
-  </div>
-
   <div class="profile-page">
     <div class="profile-inner">
+
+      <div class="profile-head">
+        <button class="back-btn" @click="emit('close')" :title="t('back')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2>{{ t('profileTitle') }}</h2>
+        <div class="head-spacer"></div>
+        <button class="btn primary" @click="saveProfileText">{{ t('save') }}</button>
+      </div>
 
       <div class="profile-hero">
         <div class="avatar-lg" @click="pickAvatarFile">
@@ -193,7 +193,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="profile-card">
+      <div class="profile-card glass-card">
         <div class="profile-card-title">{{ t('avatarStyle') }}</div>
         <div class="preset-grid">
           <button
@@ -216,18 +216,18 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="profile-card">
-        <div class="profile-card-title">{{ t('basicInfo') || 'Basic Info' }}</div>
+      <div class="profile-card glass-card">
+        <div class="profile-card-title">{{ t('basicInfo') }}</div>
         <div class="profile-field">
-          <label>{{ t('nickname') || 'Nickname' }}</label>
+          <label>{{ t('nickname') }}</label>
           <input class="profile-input" v-model="pf.nickname" maxlength="30" />
         </div>
         <div class="profile-field">
-          <label>{{ t('realName') || 'Real Name' }}</label>
+          <label>{{ t('realName') }}</label>
           <input class="profile-input" v-model="pf.real_name" maxlength="30" />
         </div>
         <div class="profile-field">
-          <label>{{ t('gender') || 'Gender' }}</label>
+          <label>{{ t('gender') }}</label>
           <div class="gender-pills">
             <button class="gender-pill" :class="{ active: pf.gender === 'male' }" @click="pf.gender = 'male'">{{ t('genderMale') }}</button>
             <button class="gender-pill" :class="{ active: pf.gender === 'female' }" @click="pf.gender = 'female'">{{ t('genderFemale') }}</button>
@@ -236,60 +236,78 @@ onMounted(() => {
           </div>
         </div>
         <div class="profile-field">
-          <label>{{ t('birthday') || 'Birthday' }}</label>
+          <label>{{ t('birthday') }}</label>
           <input class="profile-input" type="date" v-model="pf.birthday" />
         </div>
       </div>
 
-      <div class="profile-card">
-        <div class="profile-card-title">{{ t('personalization') || 'Personalization' }}</div>
+      <div class="profile-card glass-card">
+        <div class="profile-card-title">{{ t('personalization') }}</div>
         <div class="profile-field">
-          <label>{{ t('bio') || 'Bio' }} <span class="char-count">{{ (pf.bio || '').length }}/100</span></label>
+          <label>{{ t('bio') }} <span class="char-count">{{ (pf.bio || '').length }}/100</span></label>
           <textarea class="profile-input" v-model="pf.bio" maxlength="100" rows="3" style="resize:vertical;min-height:72px"></textarea>
         </div>
         <div class="profile-field">
-          <label>{{ t('aiAddress') || 'AI Address' }} <span class="char-count">{{ (pf.ai_address || '').length }}/30</span></label>
+          <label>{{ t('aiAddress') }} <span class="char-count">{{ (pf.ai_address || '').length }}/30</span></label>
           <input class="profile-input" v-model="pf.ai_address" maxlength="30" />
         </div>
       </div>
 
-      <div class="profile-card">
-        <div class="profile-card-title">{{ t('accountInfo') || 'Account Info' }}</div>
+      <div class="profile-card glass-card">
+        <div class="profile-card-title">{{ t('appearance') }}</div>
+        <div class="profile-field">
+          <label>{{ t('theme') }}</label>
+          <div class="gender-pills">
+            <button class="gender-pill" :class="{ active: theme === 'light' }" @click="applyTheme('light')">{{ t('theme_light') }}</button>
+            <button class="gender-pill" :class="{ active: theme === 'dark' }" @click="applyTheme('dark')">{{ t('theme_dark') }}</button>
+          </div>
+        </div>
+        <div class="profile-field">
+          <label>{{ t('language') }}</label>
+          <div class="gender-pills">
+            <button class="gender-pill" :class="{ active: locale === 'zh' }" @click="setLocale('zh')">中文</button>
+            <button class="gender-pill" :class="{ active: locale === 'en' }" @click="setLocale('en')">English</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="profile-card glass-card">
+        <div class="profile-card-title">{{ t('accountInfo') }}</div>
         <div class="info-list">
           <div class="info-line">
-            <span class="info-label">{{ t('email') || 'Email' }}</span>
+            <span class="info-label">{{ t('email') }}</span>
             <span class="info-value">{{ user.email }}</span>
           </div>
           <div class="info-line">
-            <span class="info-label">{{ t('role') || 'Role' }}</span>
+            <span class="info-label">{{ t('role') }}</span>
             <span class="info-value"><span class="tag" :class="{ admin: user.role === 'admin' }">{{ user.role || 'user' }}</span></span>
           </div>
           <div class="info-line">
-            <span class="info-label">{{ t('createdAt') || 'Created' }}</span>
+            <span class="info-label">{{ t('createdAt') }}</span>
             <span class="info-value">{{ user.created_at?.slice(0, 10) }}</span>
           </div>
           <div class="info-line">
-            <span class="info-label">{{ t('chatCount') || 'Chats' }}</span>
+            <span class="info-label">{{ t('chatCount') }}</span>
             <span class="info-value">{{ convs.length }}</span>
           </div>
         </div>
       </div>
 
-      <div class="profile-card">
-        <div class="profile-card-title">{{ t('changePassword') || 'Change Password' }}</div>
+      <div class="profile-card glass-card">
+        <div class="profile-card-title">{{ t('changePassword') }}</div>
         <div class="profile-field">
-          <label>{{ t('oldPassword') || 'Old Password' }}</label>
+          <label>{{ t('oldPassword') }}</label>
           <input class="profile-input" type="password" v-model="oldPw" placeholder="·······" />
         </div>
         <div class="profile-field">
-          <label>{{ t('newPassword') || 'New Password' }}</label>
+          <label>{{ t('newPassword') }}</label>
           <input class="profile-input" type="password" v-model="newPw" placeholder="·······" />
         </div>
         <div class="profile-field">
-          <label>{{ t('confirmPassword') || 'Confirm Password' }}</label>
+          <label>{{ t('confirmPassword') }}</label>
           <input class="profile-input" type="password" v-model="confirmPw" placeholder="·······" />
         </div>
-        <button class="btn primary wide" @click="changePassword">{{ t('changePassword') || 'Change Password' }}</button>
+        <button class="btn primary wide" @click="changePassword">{{ t('changePassword') }}</button>
       </div>
 
       <div class="profile-actions">
@@ -301,36 +319,45 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.top-bar {
-  display: flex;
-  align-items: center;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border-strong);
-  background: var(--surface);
-  flex-shrink: 0;
-}
-
 .profile-page {
   flex: 1;
   overflow-y: auto;
-  padding: 24px 16px;
+  padding: 40px 28px 60px;
+  box-sizing: border-box;
 }
 
 .profile-inner {
-  max-width: 560px;
+  max-width: 1080px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   padding-bottom: 40px;
 }
+
+.profile-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 24px;
+  animation: viewIn .35s var(--spring) both;
+}
+.back-btn {
+  width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--border-strong);
+  background: transparent; color: var(--text-secondary); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: all .18s var(--ease);
+}
+.back-btn:hover { border-color: var(--accent); color: var(--accent); }
+.profile-head h2 { font-size: 22px; font-weight: 700; }
+.head-spacer { flex: 1; }
 
 .profile-hero {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  padding: 24px 0 12px;
+  padding: 20px 0 8px;
+  animation: viewIn .35s var(--spring) .05s both;
 }
 
 .avatar-lg {
@@ -344,12 +371,14 @@ onMounted(() => {
   position: relative;
   cursor: pointer;
   overflow: hidden;
-  transition: box-shadow .2s var(--ease);
-  border: 2px solid var(--border);
+  border: 2px solid var(--border-strong);
+  box-shadow: var(--shadow-md);
+  transition: all .22s var(--spring);
 }
 
 .avatar-lg:hover {
-  box-shadow: 0 0 0 4px var(--accent-soft);
+  box-shadow: 0 0 0 5px var(--accent-soft), var(--shadow-md);
+  transform: scale(1.03);
 }
 
 .avatar-lg img {
@@ -386,11 +415,19 @@ onMounted(() => {
 }
 
 .profile-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 20px;
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
+  animation: viewIn .35s var(--spring) both;
 }
+.profile-card:nth-of-type(2) { animation-delay: .08s; }
+.profile-card:nth-of-type(3) { animation-delay: .14s; }
+.profile-card:nth-of-type(4) { animation-delay: .2s; }
+.profile-card:nth-of-type(5) { animation-delay: .26s; }
+.profile-card:nth-of-type(6) { animation-delay: .32s; }
+.profile-card:nth-of-type(7) { animation-delay: .38s; }
 
 .profile-card-title {
   font-size: 13px;
@@ -430,7 +467,7 @@ onMounted(() => {
   border-radius: 8px;
   font-size: 13.5px;
   font-family: var(--font);
-  background: var(--bg);
+  background: var(--surface);
   color: var(--text);
   outline: none;
   box-sizing: border-box;
@@ -452,7 +489,7 @@ onMounted(() => {
   padding: 6px 16px;
   border: 1px solid var(--border-strong);
   border-radius: 20px;
-  background: var(--bg);
+  background: var(--surface);
   color: var(--text-secondary);
   font-size: 13px;
   font-family: var(--font);
@@ -463,6 +500,7 @@ onMounted(() => {
 .gender-pill:hover {
   border-color: var(--accent);
   color: var(--accent);
+  transform: translateY(-1px);
 }
 
 .gender-pill.active {
@@ -483,7 +521,7 @@ onMounted(() => {
   aspect-ratio: 1;
   border: 2px solid var(--border);
   border-radius: var(--radius);
-  background: var(--bg);
+  background: var(--surface);
   font-size: 24px;
   display: flex;
   align-items: center;
@@ -495,12 +533,13 @@ onMounted(() => {
 
 .preset-item:hover {
   border-color: var(--accent);
-  background: var(--accent-soft);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
 }
 
 .preset-item.active {
   border-color: var(--accent);
-  background: var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .color-grid {
@@ -582,14 +621,16 @@ onMounted(() => {
   text-align: center;
   padding: 8px 16px;
   border-radius: 8px;
-  background: var(--bg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  animation: popIn .2s var(--spring) both;
 }
 
 @media (max-width: 768px) {
   .preset-grid { grid-template-columns: repeat(4, 1fr); }
   .profile-page { padding: 16px 8px; }
   .profile-card { padding: 14px; }
-  .profile-hero { padding: 16px 0 8px; }
+  .profile-hero { padding: 12px 0 6px; }
   .avatar-lg { width: 80px; height: 80px; }
 }
 </style>

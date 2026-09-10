@@ -11,6 +11,8 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
 
+from backend.log import set_user_id
+
 SECRET = os.getenv("JWT_SECRET", "meiken-secret-change-in-production")
 ALGORITHM = "HS256"
 EXPIRE_HOURS = 72
@@ -71,6 +73,7 @@ async def current_user(
     uid = decode_token(token)
     if uid is None:
         raise HTTPException(401, "Invalid or expired token")
+    set_user_id(uid)  # attach to the log context of this request
     return uid
 
 

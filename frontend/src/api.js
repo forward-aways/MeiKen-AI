@@ -29,6 +29,16 @@ export async function put(path, body) {
   return r.ok ? r.json() : null
 }
 
+export async function patch(path, body) {
+  const r = await fetch(API + path, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body)
+  })
+  return r.ok ? r.json() : null
+}
+
 export async function del(path) {
   return (await fetch(API + path, { method: 'DELETE', credentials: 'include' })).ok
 }

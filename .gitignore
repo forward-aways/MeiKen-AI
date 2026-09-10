@@ -12,6 +12,9 @@ wheels/
 # Environment file (contains API keys)
 .env
 
+# Fernet key for provider API-key encryption (never commit)
+config/fernet.key
+
 # SQLite database (generated at runtime)
 chat.db
 chat.db-wal
@@ -33,3 +36,18 @@ node_modules/
 # Local project documentation (not for public repo)
 PROJECT_DOC.md
 *.log
+
+# Runtime logs (rotated files have no .log suffix)
+logs/
+
+checkpoints.db
+checkpoints.db-wal
+checkpoints.db-shm
+
+# Skills store (generated at runtime)
+skills_store.db
+skills_store.db-wal
+skills_store.db-shm
+
+# Test caches
+.pytest_cache/
