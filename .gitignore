@@ -24,6 +24,9 @@ chat.db-shm
 chroma_db/
 uploads/
 
+# User file workspace (uploads / AI generated files / exports)
+workspace/
+
 # Node.js
 node_modules/
 

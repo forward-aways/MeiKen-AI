@@ -1,4 +1,8 @@
-"""Agent registry: builtin agent & subagent definitions."""
+"""代理注册表：内置代理与子代理定义。
+
+说明：system_prompt 保持英文（模型提示词，表现更稳定）；
+display_name / description 为界面展示用中文。
+"""
 
 DEFAULT_SYSTEM = (
     "You are MeiKen AI, a helpful AI assistant. Answer accurately and concisely. "

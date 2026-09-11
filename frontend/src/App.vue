@@ -57,6 +57,16 @@ async function onTempFile(file) {
   }
 }
 
+function splitInterim(ast) {
+  // Text emitted before a tool call is process talk — move it out of the
+  // answer bubble so only the final answer stays in the main text.
+  if (ast.content && ast.content.trim()) {
+    ast.interim = ast.interim || []
+    ast.interim.push(ast.content.trim())
+    ast.content = ''
+  }
+}
+
 function applyEvent(ast, ev) {
   if (ev.token) { ast.content += ev.token; ast.phase = 'generating'; return true }
   if (ev.reasoning) { ast.reasoning = (ast.reasoning || '') + ev.reasoning; ast.phase = 'thinking'; return true }
@@ -67,20 +77,32 @@ function applyEvent(ast, ev) {
   if (ev.status === 'rag_loaded') { ast.ragSources = ev.sources || []; return true }
   if (ev.type === 'todo') { ast.todos = ev.todos; return true }
   if (ev.type === 'tool_call') {
+    splitInterim(ast)
     ast.toolCalls = ast.toolCalls || []
-    ast.toolCalls.push({ tool: ev.tool, args: ev.args, status: 'running', result: '' })
+    ast.seq = (ast.seq || 0) + 1
+    ast.toolCalls.push({ id: ev.id || '', tool: ev.tool, args: ev.args, status: 'running', result: '', sources: [], seq: ast.seq })
     ast.phase = 'tool:' + ev.tool
     return true
   }
   if (ev.type === 'tool_result') {
-    const tc = (ast.toolCalls || []).find((x) => x.tool === ev.tool && x.status === 'running')
-    if (tc) { tc.status = 'done'; tc.result = ev.result }
-    ast.phase = ''
+    const list = ast.toolCalls || []
+    // Match by tool_call id first (same tool may be called multiple times),
+    // fall back to the first running call with the same name.
+    let tc = ev.id ? list.find((x) => x.id === ev.id) : null
+    if (!tc) tc = list.find((x) => x.tool === ev.tool && x.status === 'running')
+    if (tc) {
+      tc.status = 'done'
+      tc.result = ev.result
+      if (ev.sources) tc.sources = ev.sources
+    }
+    if (!list.some((x) => x.status === 'running')) ast.phase = ''
     return true
   }
   if (ev.status === 'sub_started') {
+    splitInterim(ast)
     ast.subagents = ast.subagents || []
-    ast.subagents.push({ name: ev.subagent, task: ev.task, status: 'running' })
+    ast.seq = (ast.seq || 0) + 1
+    ast.subagents.push({ name: ev.subagent, task: ev.task, status: 'running', seq: ast.seq })
     ast.phase = 'sub:' + ev.subagent
     return true
   }
@@ -98,6 +120,7 @@ function applyEvent(ast, ev) {
     return true
   }
   if (ev.status === 'run_end') {
+    if (typeof ev.final_text === 'string') ast.content = ev.final_text
     ast.interrupted = ev.interrupted; ast.phase = ''
     if (ev.tokens) addContextTokens(ev.tokens)
     return true

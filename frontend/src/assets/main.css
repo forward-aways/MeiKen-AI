@@ -7,7 +7,8 @@
   --shadow-xs: 0 1px 2px rgba(0,0,0,.03); --shadow-sm: 0 2px 8px rgba(0,0,0,.05);
   --shadow-md: 0 8px 24px rgba(0,0,0,.07); --shadow-lg: 0 16px 48px rgba(0,0,0,.12);
   --radius: 12px; --radius-lg: 18px; --radius-xl: 24px;
-  --font: 'Inter', system-ui, -apple-system, sans-serif; --mono: 'JetBrains Mono', Consolas, monospace;
+  --font: 'HarmonyOS Sans SC', system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  --mono: ui-monospace, 'Cascadia Code', 'JetBrains Mono', Consolas, 'Courier New', monospace;
   --ease: cubic-bezier(.22,.61,.36,1); --spring: cubic-bezier(.34,1.56,.64,1);
   --glass-bg: rgba(255,255,255,.5); --glass-bg-strong: rgba(255,255,255,.72);
   --glass-border: rgba(91,87,210,.14); --glass-hi: rgba(255,255,255,.85);
@@ -88,6 +89,38 @@ body::before {
 [data-theme="dark"] .glass-card { background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.03) 55%, rgba(255,255,255,.06)); }
 [data-theme="dark"] .glass-pop { background: linear-gradient(180deg, rgba(30,33,52,.82), rgba(24,26,42,.66) 55%, rgba(28,30,48,.72)); }
 [data-theme="dark"] .glass-weak { background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.015)); }
+
+/* ===== Activity language: running rows share one look across the app ===== */
+/* Glass slab for an active row */
+.activity-glass {
+  background: linear-gradient(180deg, rgba(91,87,210,.08), rgba(91,87,210,.03));
+  border: 1px solid rgba(91,87,210,.2);
+}
+[data-theme="dark"] .activity-glass {
+  background: linear-gradient(180deg, rgba(126,121,247,.14), rgba(126,121,247,.05));
+  border-color: rgba(126,121,247,.28);
+}
+/* White-glass reflection sweeping across, repeatedly */
+.glass-sweep { position: relative; overflow: hidden; }
+.glass-sweep::after {
+  content: ''; position: absolute; top: 0; bottom: 0; width: 45%;
+  background: linear-gradient(105deg, transparent, rgba(255,255,255,.5), transparent);
+  transform: translateX(-160%);
+  animation: sweepSlide 2.1s cubic-bezier(.4,0,.2,1) infinite;
+  pointer-events: none;
+}
+[data-theme="dark"] .glass-sweep::after { background: linear-gradient(105deg, transparent, rgba(255,255,255,.16), transparent); }
+@keyframes sweepSlide { 0% { transform: translateX(-160%); } 60%, 100% { transform: translateX(330%); } }
+/* Shimmering text (accent gradient with a white highlight running through) */
+.shine-text {
+  background: linear-gradient(100deg, var(--accent) 30%, #ffffff 50%, var(--accent) 70%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  animation: shineSlide 1.9s linear infinite;
+  font-weight: 650;
+}
+@keyframes shineSlide { from { background-position: 180% 0; } to { background-position: -80% 0; } }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

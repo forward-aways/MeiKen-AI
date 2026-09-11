@@ -1,8 +1,21 @@
 <template>
   <div class="cm" :title="`${t('contextUsed')}: ${fmtFull(contextTokens)} / 1M`">
-    <div class="cm-track">
-      <div class="cm-fill" :class="tone" :style="{ width: pct + '%' }"></div>
-    </div>
+    <svg class="cm-ring" viewBox="0 0 20 20" width="23" height="23" aria-hidden="true">
+      <defs>
+        <linearGradient id="cm-grad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#34d399"/>
+          <stop offset="100%" stop-color="#5b8def"/>
+        </linearGradient>
+      </defs>
+      <circle class="cm-ring-track" cx="10" cy="10" r="8" fill="none" stroke-width="2.6"/>
+      <circle
+        class="cm-ring-fill" :class="tone"
+        cx="10" cy="10" r="8" fill="none" stroke-width="2.6"
+        stroke-linecap="round"
+        :stroke-dasharray="CIRC" :stroke-dashoffset="offset"
+        transform="rotate(-90 10 10)"
+      />
+    </svg>
     <span class="cm-label">{{ label }}<em>/1M</em></span>
   </div>
 </template>
@@ -11,7 +24,9 @@
 import { computed } from 'vue'
 import { t, contextTokens, CONTEXT_WINDOW } from '../store.js'
 
+const CIRC = 2 * Math.PI * 8
 const pct = computed(() => Math.min(100, (contextTokens.value / CONTEXT_WINDOW) * 100))
+const offset = computed(() => CIRC * (1 - pct.value / 100))
 const tone = computed(() => (pct.value > 85 ? 'hot' : pct.value > 60 ? 'warn' : 'ok'))
 const label = computed(() => {
   const v = contextTokens.value
@@ -25,31 +40,21 @@ function fmtFull(v) {
 </script>
 
 <style scoped>
-.cm { display: flex; align-items: center; gap: 7px; min-width: 128px; }
-.cm-track {
-  flex: 1; height: 6px; border-radius: 999px; overflow: hidden;
-  border: 1px solid rgba(255,255,255,.45);
-  background: linear-gradient(180deg, rgba(255,255,255,.4), rgba(255,255,255,.15));
-  backdrop-filter: blur(8px) saturate(160%);
-  -webkit-backdrop-filter: blur(8px) saturate(160%);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), inset 0 1px 3px rgba(20,18,60,.08);
+.cm { display: flex; align-items: center; gap: 6px; cursor: default; }
+.cm-ring { flex-shrink: 0; }
+.cm-ring-track { stroke: rgba(91,87,210,.15); }
+[data-theme="dark"] .cm-ring-track { stroke: rgba(255,255,255,.12); }
+.cm-ring-fill {
+  stroke: url(#cm-grad);
+  transition: stroke-dashoffset .6s var(--spring), stroke .3s var(--ease);
 }
-[data-theme="dark"] .cm-track {
-  border-color: rgba(255,255,255,.09);
-  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), inset 0 1px 3px rgba(0,0,0,.3);
-}
-.cm-fill {
-  height: 100%; border-radius: 999px;
-  background: linear-gradient(90deg, #34d399, #5b8def);
-  transition: width .6s var(--spring);
-  box-shadow: 0 0 8px rgba(91,141,239,.45);
-}
-.cm-fill.warn { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
-.cm-fill.hot { background: linear-gradient(90deg, #f87171, #ef4444); }
+.cm-ring-fill.warn { stroke: #f59e0b; }
+.cm-ring-fill.hot { stroke: #ef4444; }
 .cm-label {
   font-size: 11px; font-weight: 650; color: var(--text-secondary);
   font-variant-numeric: tabular-nums; white-space: nowrap; letter-spacing: .2px;
+  transition: color .15s var(--ease);
 }
+.cm:hover .cm-label { color: var(--text); }
 .cm-label em { font-style: normal; color: var(--text-muted); font-weight: 500; margin-left: 2px; }
 </style>

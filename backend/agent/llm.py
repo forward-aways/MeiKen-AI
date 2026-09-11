@@ -1,27 +1,26 @@
-"""LLM construction for the agent harness.
+"""代理引擎的 LLM 构建。
 
-Providers are resolved per user from the database (API keys stored encrypted).
-A model name maps back to its provider at request-build time:
+供应商按用户从数据库解析（API Key 加密存储）。
+模型名在构建请求时反向映射到供应商：
 
-- ``deepseek_compat=True`` → ``DeepSeekChatOpenAI``: injects DeepSeek thinking
-  params (``thinking`` + ``reasoning_effort``) via ``extra_body`` and captures
-  ``reasoning_content`` from stream deltas;
-- ``deepseek_compat=False`` → plain ``ChatOpenAI``: zero extra params ever sent,
-  safe for any standard OpenAI-compatible endpoint (OpenAI, Ollama, GLM, ...).
+- ``deepseek_compat=True`` → ``DeepSeekChatOpenAI``：通过 ``extra_body`` 注入
+  DeepSeek 思考参数（``thinking`` + ``reasoning_effort``），
+  并从流式增量中捕获 ``reasoning_content``；
+- ``deepseek_compat=False`` → 原生 ``ChatOpenAI``：绝不发送额外参数，
+  兼容任意标准 OpenAI 协议端点（OpenAI、Ollama、GLM 等）。
 """
-
 from langchain_core.messages import AIMessage, AIMessageChunk
 from langchain_openai import ChatOpenAI
 
 from backend.crypto import decrypt_secret
-from backend.database import provider_find_by_model
+from backend.db import provider_find_by_model
 from backend.log import get_logger
 
 log = get_logger("backend.llm")
 
 
 class LLMConfigError(ValueError):
-    """Raised when a model has no usable provider or the provider lacks a key."""
+    """模型没有可用供应商，或供应商未配置 API Key 时抛出。"""
 
 
 class DeepSeekChatOpenAI(ChatOpenAI):
@@ -33,7 +32,7 @@ class DeepSeekChatOpenAI(ChatOpenAI):
         **kwargs,
     ):
         extra = dict(kwargs.pop("extra_body", None) or {})
-        # DeepSeek enables thinking by default; disable explicitly when off.
+        # DeepSeek 默认开启思考；关闭时需显式声明 disabled
         extra["thinking"] = {"type": "enabled" if thinking else "disabled"}
         if thinking:
             extra["reasoning_effort"] = reasoning_effort
@@ -71,7 +70,7 @@ class DeepSeekChatOpenAI(ChatOpenAI):
 
 
 def resolve_provider(user_id: int, model: str) -> dict | None:
-    """Map a model name to its enabled provider (user's own or built-in)."""
+    """把模型名映射到对应供应商（用户自建或内置）。"""
     return provider_find_by_model(user_id, model)
 
 
@@ -85,19 +84,18 @@ def build_llm(
     max_tokens: int = 4096,
     **kwargs,
 ):
-    """Build a chat model for ``model`` using the resolved provider config.
+    """按供应商配置为 ``model`` 构建聊天模型。
 
-    Raises ``LLMConfigError`` when no provider owns the model or the provider
-    has no API key configured.
+    当模型没有供应商、或供应商未配置 API Key 时抛出 ``LLMConfigError``。
     """
     if not provider:
-        raise LLMConfigError(f"No provider configured for model '{model}'")
+        raise LLMConfigError(f"模型「{model}」没有可用的供应商")
     api_key = decrypt_secret(provider.get("api_key_enc") or "") if provider.get("api_key_enc") else ""
     if not api_key:
-        raise LLMConfigError(f"Provider '{provider['name']}' has no API key configured")
+        raise LLMConfigError(f"供应商「{provider['name']}」尚未配置 API Key")
     base_url = provider.get("base_url")
     if provider.get("deepseek_compat"):
-        log.debug("build llm | provider=%s model=%s style=deepseek thinking=%s effort=%s",
+        log.debug("构建 LLM | provider=%s model=%s 风格=deepseek thinking=%s effort=%s",
                   provider["name"], model, thinking, reasoning_effort)
         return DeepSeekChatOpenAI(
             model=model,
@@ -109,7 +107,7 @@ def build_llm(
             max_tokens=max_tokens,
             **kwargs,
         )
-    log.debug("build llm | provider=%s model=%s style=standard", provider["name"], model)
+    log.debug("构建 LLM | provider=%s model=%s 风格=标准", provider["name"], model)
     return ChatOpenAI(
         model=model,
         api_key=api_key,

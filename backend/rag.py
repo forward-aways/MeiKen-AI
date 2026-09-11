@@ -1,18 +1,24 @@
+"""知识库（RAG）：文档解析、切分、向量化与检索。
+
+设计：向量库按用户隔离（metadata.user_id 过滤），
+文件保存到用户工作区，检索结果携带来源文件名供引用展示。
+
+注意：在导入 chromadb 之前关闭匿名遥测——posthog 上报在部分网络环境下
+会无限阻塞初始化（已经实测：开启时卡死，关闭后 0.4s）。
+"""
 import os
+
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "false")
+
 import uuid
 from pathlib import Path
 
-from dotenv import load_dotenv
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from pypdf import PdfReader
 
-load_dotenv()
-
-CHROMA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "chroma_db")
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
+from backend.config import CHROMA_DIR, UPLOAD_DIR
 
 Path(UPLOAD_DIR).mkdir(exist_ok=True)
 
@@ -31,7 +37,7 @@ _vectorstore = None
 
 
 class ChromadbEmbeddingAdapter(Embeddings):
-    """Wrap chromadb's native embedding function to match langchain's Embeddings interface."""
+    """把 chromadb 原生 embedding 函数适配为 langchain 的 Embeddings 接口。"""
 
     def __init__(self, ef):
         self._ef = ef
@@ -63,24 +69,13 @@ def _get_vectorstore():
 
 
 def extract_text(filepath: str, filename: str) -> str:
-    ext = Path(filename).suffix.lower()
-    if ext == ".pdf":
-        reader = PdfReader(filepath)
-        return "\n\n".join(page.extract_text() or "" for page in reader.pages)
-    elif ext in (".txt", ".md"):
-        with open(filepath, "r", encoding="utf-8") as f:
-            return f.read()
-    elif ext == ".docx":
-        from docx import Document as DocxDocument
-        doc = DocxDocument(filepath)
-        return "\n\n".join(p.text for p in doc.paragraphs)
-    else:
-        with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-            return f.read()
+    """提取文件正文（统一走文档解析层，支持 pdf/docx/xlsx/pptx/csv/html 等）。"""
+    from backend.documents import extract_document
+    return extract_document(filepath, filename).text
 
 
 def ingest_document(filepath: str, filename: str, file_id: str, scope: str = "temp", user_id: int = 0):
-    """Extract text, split into chunks, and store in Chroma vector DB."""
+    """提取文本、切分为块并写入 Chroma 向量库，返回块数。"""
     text = extract_text(filepath, filename)
     if not text.strip():
         return 0
@@ -98,7 +93,7 @@ def ingest_document(filepath: str, filename: str, file_id: str, scope: str = "te
 
 
 def search_relevant(query: str, scope: str = None, k: int = 4, file_ids: list = None, user_id: int = None):
-    """Search for relevant document chunks, always scoped to the requesting user."""
+    """检索相关文档块：始终限定在当前用户范围内。"""
     vs = _get_vectorstore()
     filters = {}
     if user_id is not None:
@@ -121,22 +116,21 @@ def search_relevant(query: str, scope: str = None, k: int = 4, file_ids: list = 
 
 
 def delete_document(file_id: str):
-    """Remove all chunks belonging to a file from the vector store."""
+    """删除某个文件的全部向量块。"""
     _get_vectorstore().delete(where={"file_id": file_id})
 
 
-def save_upload_file(file_content: bytes, filename: str) -> str:
-    """Save uploaded file to disk, return filepath."""
+def save_upload_file(file_content: bytes, filename: str, user_id: int = 0):
+    """保存上传文件到用户工作区，返回 (文件路径, 文件 ID)。"""
+    from backend.workspace import save_upload
     file_id = uuid.uuid4().hex[:12]
     ext = Path(filename).suffix
-    filepath = os.path.join(UPLOAD_DIR, f"{file_id}{ext}")
-    with open(filepath, "wb") as f:
-        f.write(file_content)
-    return filepath, file_id
+    path = save_upload(user_id, file_id, ext, file_content)
+    return path, file_id
 
 
 def cleanup_upload_file(filepath: str):
-    """Remove uploaded file from disk."""
+    """删除磁盘上的上传文件（忽略失败）。"""
     try:
         os.remove(filepath)
     except OSError:

@@ -1,25 +1,23 @@
-"""API-key secret management.
+"""API Key 密钥管理。
 
-Keys are stored in SQLite as Fernet-encrypted blobs (never plaintext). The
-Fernet key lives in ``config/fernet.key`` and is auto-generated on first use,
-so deploying to a fresh server requires zero manual setup.
+Key 以 Fernet 加密形式存储在 SQLite 中（绝不保存明文）。
+加密密钥位于 ``config/fernet.key``，首次使用时自动生成，
+部署到全新服务器无需手工配置。
 
-Note: hashing was deliberately NOT chosen — hashes are one-way and cannot be
-decrypted back into the plaintext key needed for upstream API calls.
+说明：这里刻意不使用哈希——哈希不可逆，无法还原出调用上游 API
+所需的明文 Key。
 """
-
 import os
 
 from cryptography.fernet import Fernet, InvalidToken
 
-_KEY_FILE = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "config", "fernet.key",
-)
+from backend.config import CONFIG_DIR
+
+_KEY_FILE = os.path.join(CONFIG_DIR, "fernet.key")
 
 
 def get_or_create_fernet_key() -> bytes:
-    """Load the Fernet key, generating it on first run (idempotent)."""
+    """读取 Fernet 密钥；不存在时生成（幂等）。"""
     os.makedirs(os.path.dirname(_KEY_FILE), exist_ok=True)
     if not os.path.exists(_KEY_FILE):
         key = Fernet.generate_key()
@@ -31,15 +29,13 @@ def get_or_create_fernet_key() -> bytes:
 
 
 def encrypt_secret(plain: str) -> str:
-    """Encrypt a plaintext API key for storage."""
+    """加密明文 API Key，用于入库存储。"""
     return Fernet(get_or_create_fernet_key()).encrypt(plain.encode()).decode()
 
 
 def decrypt_secret(token: str) -> str:
-    """Decrypt a stored API key back to plaintext."""
+    """还原存储的 API Key 明文。"""
     try:
         return Fernet(get_or_create_fernet_key()).decrypt(token.encode()).decode()
     except InvalidToken as exc:
-        raise ValueError(
-            "Unable to decrypt provider key: fernet.key mismatch or corrupted value"
-        ) from exc
+        raise ValueError("无法解密供应商密钥：fernet.key 不匹配或密文已损坏") from exc

@@ -248,21 +248,35 @@ MeiKen-AI/
 ├── pyproject.toml                  # Python 依赖
 │
 ├── backend/
-│   ├── main.py                     # FastAPI 路由 + 请求日志中间件
-│   ├── agent/                      # 多代理引擎（deepagents）
-│   │   ├── bridge.py               # 流式事件桥接（SSE 事件协议）
-│   │   ├── factory.py              # 代理工厂 + 缓存 + 审批中断
-│   │   ├── identity.py             # 人格 / 模式（general / code / work）
-│   │   ├── llm.py                  # 供应商解析 + DeepSeek 双模式
-│   │   ├── registry.py             # 内置代理与子代理定义
-│   │   └── tools.py                # 工具（联网搜索 / 知识库）
-│   ├── database.py                 # SQLite CRUD（11 张表）
-│   ├── schemas.py                  # Pydantic 模型
+│   ├── main.py                     # 应用装配（中间件 / 路由注册 / 生命周期）
+│   ├── config.py                   # 集中配置（环境变量 / 路径 / 默认值）
+│   ├── middleware.py               # 请求上下文中间件（请求 ID / 用户关联）
+│   ├── runtime.py                  # 运行时单例（工厂 / 检查点 / 并发闸门）
+│   ├── log.py                      # 日志系统（控制台高亮 + 文件每日轮转）
 │   ├── auth.py                     # JWT 认证 + 密码重置
 │   ├── crypto.py                   # API Key Fernet 加密
+│   ├── schemas.py                  # Pydantic 模型
 │   ├── skills.py                   # SKILL.md 校验 / 解析
 │   ├── rag.py                      # 知识库向量检索
-│   └── log.py                      # 日志系统（轮转 + 请求追踪）
+│   ├── db/                         # 数据访问层（按业务域拆分）
+│   │   ├── _core.py                # 连接管理 / 建表 / 迁移
+│   │   ├── users.py  convs.py  agents.py
+│   │   ├── providers.py  skills.py  kb.py  images.py
+│   ├── routes/                     # HTTP 路由
+│   │   ├── auth.py  convs.py  chat.py  agents.py
+│   │   ├── skills.py  kb.py  providers.py  images.py  misc.py
+│   ├── services/
+│   │   └── chat_stream.py          # SSE 编排（对话 / 审批共用）
+│   └── agent/                      # 多代理引擎（deepagents）
+│       ├── bridge.py               # 流式事件桥接（SSE 事件协议）
+│       ├── factory.py              # 代理工厂 + 缓存 + 审批中断
+│       ├── identity.py             # 人格 / 模式（general / code / work）
+│       ├── llm.py                  # 供应商解析 + DeepSeek 双模式
+│       ├── registry.py             # 内置代理与子代理定义
+│       └── tools.py                # 工具（联网搜索 / 知识库）
+│
+├── tests/                          # 后端测试
+│   └── test_smoke.py               # 核心接口冒烟测试（uv run --with pytest pytest tests/ -v）
 │
 ├── frontend/
 │   ├── package.json                # npm 依赖
@@ -276,24 +290,7 @@ MeiKen-AI/
 │       ├── logger.js               # 前端日志 + 全局错误捕获
 │       ├── experts.js              # 专家代理元数据
 │       ├── assets/main.css         # 玻璃材质系统 / 动画
-│       └── components/
-│           ├── Dashboard.vue       # 会话落地页
-│           ├── Sidebar.vue         # 侧边栏（导航 / 对话列表）
-│           ├── TopBar.vue          # 悬浮玻璃顶栏
-│           ├── TopBarOptions.vue   # 模型 / 思考 / 强度胶囊
-│           ├── AgentOptions.vue    # 工具栏代理选项胶囊
-│           ├── ExpertTeamBar.vue   # 专家团队快速切换
-│           ├── ChatMessage.vue     # 消息 / 图片 / 编辑 / 思考面板
-│           ├── AgentRun.vue        # 代理运行（工具 / 计划 / 审批）
-│           ├── MessageInput.vue    # 输入框 / 图片粘贴拖拽
-│           ├── ModelManagerModal.vue  # 模型供应商管理
-│           ├── AgentConfigPage.vue # 代理配置
-│           ├── SkillsPage.vue      # 技能管理
-│           ├── KbPage.vue          # 知识库
-│           ├── ActivityPanel.vue   # 活动面板
-│           ├── SearchPage.vue      # 全文搜索
-│           ├── ProfilePage.vue     # 个人信息
-│           └── LoginPage.vue       # 登录 / 注册 / 重置
+│       └── components/             # 页面与组件（约 20 个，见 frontend/src）
 │
 └── docs/                           # 参考文档（deepagents / DeepSeek API）
 ```

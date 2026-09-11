@@ -1,5 +1,10 @@
-"""Tools exposed to agents in the harness."""
+"""代理可用的工具集。
+
+说明：``@tool`` 装饰函数的 docstring 是给模型看的工具描述，
+保持英文以获得稳定的模型表现；代码注释为中文。
+"""
 import os
+import re
 
 import httpx
 from dotenv import load_dotenv
@@ -32,6 +37,12 @@ def knowledge_search(query: str) -> str:
         return f"知识库检索失败: {e}"
 
 
+def _clip(s, n=180):
+    """压缩摘要文本：单行化并硬截断，控制工具输出体积。"""
+    s = (s or "").strip().replace("\n", " ")
+    return s[:n] + ("…" if len(s) > n else "")
+
+
 def _search_raw(query: str):
     if not BOCHA_KEY:
         return {"pages": [], "error": "Search API is not configured."}
@@ -46,7 +57,7 @@ def _search_raw(query: str):
         data = r.json()
         pages = data.get("data", {}).get("webPages", {}).get("value", [])
         return {"pages": [
-            {"title": p.get("name", ""), "snippet": p.get("snippet", "") or "", "url": p.get("url", "") or p.get("displayUrl", "")}
+            {"title": _clip(p.get("name", ""), 120), "snippet": _clip(p.get("snippet")), "url": p.get("url", "") or p.get("displayUrl", "")}
             for p in pages
         ]}
     except Exception as e:
@@ -70,6 +81,31 @@ def _fmt_pages(pages):
     for p in pages:
         parts.append(f"### {p['title']}\n{p['snippet']}\nSource: {p['url']}")
     return "\n\n---\n\n".join(parts)
+
+
+def parse_search_sources(text: str) -> list[dict]:
+    """从 web_search 的格式化输出中解析 {title, snippet, url} 列表。"""
+    out = []
+    for block in (text or "").split("\n\n---\n\n"):
+        lines = block.strip().split("\n")
+        if len(lines) >= 3 and lines[0].startswith("### ") and lines[-1].startswith("Source: "):
+            out.append({
+                "title": lines[0][4:].strip(),
+                "snippet": "\n".join(lines[1:-1]).strip(),
+                "url": lines[-1][8:].strip(),
+            })
+    return out
+
+
+def parse_kb_sources(text: str) -> list[str]:
+    """从 knowledge_search 输出中解析来源文件名（去重）。"""
+    seen, out = set(), []
+    for m in re.finditer(r"\[Source \d+: (.+?)\]", text or ""):
+        name = m.group(1).strip()
+        if name and name not in seen:
+            seen.add(name)
+            out.append(name)
+    return out
 
 
 TOOL_REGISTRY = {

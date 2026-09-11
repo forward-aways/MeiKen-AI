@@ -1,5 +1,5 @@
 <script setup>
-import { ref, nextTick, watch } from 'vue'
+import { ref, nextTick, computed } from 'vue'
 import { msgs, user, locale, t } from '../store.js'
 import { md, stripMd } from '../md.js'
 import { API_BASE } from '../api.js'
@@ -14,16 +14,9 @@ const editing = ref(false)
 const editText = ref('')
 const copiedLabel = ref(null)
 const showThinking = ref(false)
-const thinkingAutoOpened = ref(false)
 const lightbox = ref(null)
 
-// Auto-open the reasoning panel while the model is thinking, once per message.
-watch(() => props.message.reasoning, (v) => {
-  if (v && props.message.streaming && !thinkingAutoOpened.value) {
-    thinkingAutoOpened.value = true
-    showThinking.value = true
-  }
-})
+const isThinking = computed(() => !!(props.message.streaming && props.message.reasoning && !props.message.thinkingTime))
 
 function isImgAvatar(v) { return v && v.startsWith('data:') }
 function avBgStyle(c) { return c ? { background: c } : {} }
@@ -84,10 +77,10 @@ function truncate(s, max) {
     <div class="msg-body">
       <div class="msg-sender" v-if="message.role === 'assistant'">MeiKen AI</div>
 
-      <div v-if="message.reasoning" class="thinking-section glass-weak">
-        <button class="thinking-toggle" @click="showThinking = !showThinking">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" stroke-linecap="round"><path d="M12 2a7 7 0 0 0-7 7c0 2.4 1.2 4.5 3 5.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3c1.8-1.2 3-3.3 3-5.7a7 7 0 0 0-7-7z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>
-          <span>{{ message.thinkingTime ? thinkingLabel(message.thinkingTime) : t('thinking') }}</span>
+      <div v-if="message.reasoning" class="thinking-section">
+        <button class="thinking-toggle" :class="{ 'activity-glass glass-sweep': isThinking }" @click="showThinking = !showThinking">
+          <span class="think-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" stroke-linecap="round"><path d="M12 2a7 7 0 0 0-7 7c0 2.4 1.2 4.5 3 5.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3c1.8-1.2 3-3.3 3-5.7a7 7 0 0 0-7-7z"/><line x1="9" y1="21" x2="15" y2="21"/></svg></span>
+          <span class="think-title" :class="{ 'shine-text': isThinking }">{{ message.thinkingTime ? thinkingLabel(message.thinkingTime) : t('thinking') }}</span>
           <svg class="chevron" :class="{ open: showThinking }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         <div v-if="showThinking" class="thinking-content">
@@ -174,30 +167,43 @@ function truncate(s, max) {
 .msg.user .msg-body { display: flex; flex-direction: column; align-items: flex-end; }
 .msg-sender { font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 6px; line-height: 30px; }
 
-/* Thinking Section */
-.thinking-section { margin-bottom: 10px; border-radius: 12px; padding: 6px 8px; }
+/* Thinking Section — same activity language as the tool timeline */
+.thinking-section { margin-bottom: 10px; }
 .thinking-toggle {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
+  padding: 5px 10px;
+  border: none;
+  border-radius: 10px;
   background: transparent;
   color: var(--text-secondary);
   font-size: 12.5px;
   font-family: var(--font);
   cursor: pointer;
-  transition: all .15s var(--ease);
+  transition: background .15s var(--ease), border-color .15s var(--ease);
 }
-.thinking-toggle:hover { background: var(--border); color: var(--text); }
-.thinking-toggle .chevron { transition: transform .2s var(--ease); }
+.thinking-toggle:hover { background: rgba(91,87,210,.07); }
+.thinking-toggle.activity-glass {
+  background: linear-gradient(180deg, rgba(91,87,210,.08), rgba(91,87,210,.03));
+  border: 1px solid rgba(91,87,210,.2);
+}
+.thinking-toggle.activity-glass:hover { background: linear-gradient(180deg, rgba(91,87,210,.11), rgba(91,87,210,.05)); }
+[data-theme="dark"] .thinking-toggle.activity-glass {
+  background: linear-gradient(180deg, rgba(126,121,247,.14), rgba(126,121,247,.05));
+  border-color: rgba(126,121,247,.28);
+}
+[data-theme="dark"] .thinking-toggle.activity-glass:hover { background: linear-gradient(180deg, rgba(126,121,247,.18), rgba(126,121,247,.07)); }
+.think-ico { display: flex; color: var(--text-muted); flex-shrink: 0; }
+.thinking-toggle.activity-glass .think-ico { color: var(--accent); }
+.think-title { font-weight: 600; }
+.thinking-toggle.activity-glass .think-title { font-weight: 650; }
+.thinking-toggle .chevron { transition: transform .2s var(--ease); color: var(--text-muted); flex-shrink: 0; }
 .thinking-toggle .chevron.open { transform: rotate(180deg); }
 .thinking-content {
-  margin-top: 8px;
+  margin-top: 6px;
   padding: 10px 14px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
+  border-radius: 10px;
   background: var(--accent-soft);
   color: var(--text-secondary);
   font-size: 13px;
@@ -210,7 +216,19 @@ function truncate(s, max) {
 .thinking-content :deep(p:last-child) { margin: 0; }
 
 .bubble { padding: .62rem 0; line-height: 1.68; font-size: 15px; }
-.msg.user .bubble { max-width: 78%; background: var(--user-bg); color: var(--user-text); padding: .62rem 1rem; border-radius: var(--radius-lg) var(--radius-lg) 5px var(--radius-lg); box-shadow: 0 2px 12px rgba(91,87,210,.22); }
+.msg.user .bubble {
+  max-width: 78%; color: var(--user-text); padding: .62rem 1rem;
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.06'/></svg>"),
+    linear-gradient(180deg, rgba(99,95,222,.97), rgba(75,71,192,.93));
+  border: 1px solid rgba(255,255,255,.26);
+  border-radius: 18px 18px 6px 18px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.32),
+    inset 0 -1px 0 rgba(0,0,0,.14),
+    0 2px 6px rgba(91,87,210,.22),
+    0 10px 24px rgba(91,87,210,.18);
+}
 .msg.assistant .bubble { width: 100%; background: transparent; border: none; box-shadow: none; border-radius: 0; padding: .3rem 0; }
 :deep(.bubble p) { margin: 0 0 .5rem; }
 :deep(.bubble p:last-child) { margin: 0; }

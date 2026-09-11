@@ -1,6 +1,6 @@
-"""SKILL.md parser following the Agent Skills specification (agentskills.io).
+"""SKILL.md 解析器（遵循 Agent Skills 规范）。
 
-A skill is markdown with an optional YAML frontmatter block:
+技能是带可选 YAML frontmatter 的 Markdown：
     ---
     name: docx-writing
     description: Use when the user asks to draft or polish Word documents.
@@ -20,21 +20,20 @@ _FRONTMATTER_RE = re.compile(r'^---\s*\n(.*?)\n---\s*\n?', re.DOTALL)
 
 
 class SkillValidationError(ValueError):
-    """Raised when skill content cannot be parsed as a valid SKILL.md."""
+    """技能内容无法解析为合法 SKILL.md 时抛出。"""
 
 
 def slugify(text: str, max_len: int = 64) -> str:
-    """Turn arbitrary text into a slug usable as a skill name (keeps CJK chars)."""
+    """把任意文本转为可用作技能名的 slug（保留中文字符）。"""
     out = re.sub(r'[^a-z0-9\u4e00-\u9fff]+', '-', text.strip().lower()).strip('-')
     return (out or 'skill')[:max_len].rstrip('-')
 
 
 def parse_skill_markdown(raw: str, fallback_name: str = "") -> dict:
-    """Parse SKILL.md into {name, description, meta, body}.
+    """解析 SKILL.md 为 {name, description, meta, body}。
 
-    Tolerant mode: missing frontmatter falls back to `fallback_name` (from the
-    upload filename) and the first non-empty line of the body as description.
-    Raises SkillValidationError when neither frontmatter nor fallback is usable.
+    容错模式：缺少 frontmatter 时用 ``fallback_name``（通常来自上传文件名）
+    并以正文首个非空行作为描述；两者都不可用时抛 SkillValidationError。
     """
     if not raw or not raw.strip():
         raise SkillValidationError("技能内容为空")
@@ -81,7 +80,7 @@ def parse_skill_markdown(raw: str, fallback_name: str = "") -> dict:
 
 
 def build_skill_markdown(name: str, description: str, body: str) -> str:
-    """Assemble a canonical SKILL.md from form fields (used by manual creation)."""
+    """由表单字段组装规范 SKILL.md（手动创建时使用）。"""
     body = (body or "").strip()
     if not body:
         raise SkillValidationError("技能正文（指令内容）不能为空")
