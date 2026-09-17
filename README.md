@@ -2,513 +2,269 @@
 
 # MeiKen AI Harness
 
-基于 FastAPI + Vue 3 + deepagents 的多代理 AI 工作站：内置专家代理、子代理委派、工具调用与人工审批，支持多模型供应商、联网搜索、私有知识库、技能系统与多模态输入。
+可自托管的多智能体 AI 工作站：deepagents 编排、多模型供应商、联网搜索、私有知识库、技能系统与多模态输入。
 
 <img src="https://img.shields.io/badge/Python-3.13-5b57d2?logo=python" alt="Python">
 <img src="https://img.shields.io/badge/Vue-3.x-5b57d2?logo=vuedotjs" alt="Vue">
 <img src="https://img.shields.io/badge/FastAPI-0.139-5b57d2?logo=fastapi" alt="FastAPI">
+<img src="https://img.shields.io/badge/version-2.0.0-5b57d2" alt="Version">
 <img src="https://img.shields.io/badge/license-MIT-5b57d2" alt="License">
+
+**中文** · [English](README.en.md) · [部署文档](docs/DEPLOYMENT.md) · [API 文档](docs/API.md)
 
 </div>
 
 ---
 
-## 目录
+## 简介
 
-- [核心亮点](#核心亮点)
-- [技术栈](#技术栈)
-- [快速开始](#快速开始)
-- [项目结构](#项目结构)
-- [API 概览](#api-概览)
-- [数据库](#数据库)
-- [部署](#部署)
-- [License](#license)
+MeiKen AI Harness 是一个可自托管的多智能体对话平台。后端基于 [deepagents](https://github.com/langchain-ai/deepagents)（LangGraph）编排多代理工作流，前端提供液态玻璃质感的交互界面。
 
-## 核心亮点
+它把「代理编排」与「可落地部署」放在同等重要的位置：既可以本地开发，也可以直接跑在服务器上（后端同时托管前端构建产物），并且不强制携带任何个人 API Key——每位使用者在界面中配置自己的模型供应商。
 
-<table>
-<tr>
-<td width="50%" valign="top">
+- 快速体验：见 [快速开始](#快速开始)
+- 服务器部署：见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+- 接口细节：见 [docs/API.md](docs/API.md)，或运行后的 `/docs`
 
-### 多代理系统（deepagents）
+## 功能特性
 
+### 多智能体引擎
 - 内置 5 个代理：通用助手 / 研究员 / 代码专家 / 数据分析师 / 写作助手
-- 子代理委派（研究员、数据分析师）自动分工
-- 工具调用可视化（调用卡片 + 结果折叠）
-- 计划清单（write_todos）实时更新
+- 子代理委派：协调者通过 `task` 工具把独立子任务分派给研究员、分析师
+- 执行时间线：工具调用、子代理与计划以时间线呈现，可展开查看参数与结果
+- 计划清单：`write_todos` 实时更新待办进度
 - 人工审批（HITL）：敏感工具调用可批准 / 拒绝 / 修改参数
 - 三种人格模式：通用 / 编程 / 办公
 
-</td>
-<td width="50%" valign="top">
+### 模型与多模态
+- 多供应商：内置 DeepSeek + 任意 OpenAI 兼容接口（自定义 Base URL、模型列表、上下文窗口）
+- API Key 使用 Fernet 对称加密存储，按用户隔离，不落明文
+- 一键连接测试、启用 / 停用，模型胶囊二级菜单直接切换
+- 图片粘贴 / 拖拽 / 预览，多模态模型直读图片，非多模态模型自动降级为纯文本
+- 思考模式三档（快速 / 标准 / 深度）与独立推理强度，思维链可折叠并显示耗时
 
-### 模型供应商管理
+### 知识库与技能
+- 知识库（RAG）：支持 PDF / Word / Excel / PPT / CSV / HTML / Markdown / 纯文本等格式，向量检索并回溯来源
+- 用户文件工作区：上传文件与 AI 生成文件按用户隔离落盘，支持列表 / 预览 / 下载
+- 技能系统：`SKILL.md` 格式，可创建 / 上传 / 编辑 / 启停，按用户存储并按需加载
 
-- 多供应商：内置 DeepSeek + 任意 OpenAI 兼容接口
-- API Key 使用 Fernet 对称加密存储，按用户隔离
-- 一键连接测试、启用 / 停用、模型级上下文窗口配置
-- 模型胶囊二级菜单直接切换模型
-- 服务器部署可留空 Key，使用者自行配置
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-### 多模态输入
-
-- 图片粘贴 / 拖拽 / 预览，单条消息最多 4 张
-- 多模态模型直读图片（DeepSeek V4.1 Flash 原生支持）
-- 消息图片渲染 + 点击灯箱查看
-- 非多模态模型自动降级为纯文本
-
-</td>
-<td width="50%" valign="top">
-
-### 深度思考与推理强度
-
-- 思考模式三档：快速 / 标准 / 深度
-- 推理强度独立调节，思考面板可折叠 + 耗时显示
-- 兼容 DeepSeek reasoning_content 思维链
-- 支持 思考 + 搜索 组合模式
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-### 联网搜索
-
-- 博查 API 实时检索（新闻 / 天气 / 时事）
-- 代理自动判断搜索时机（Function Calling）
-- 搜索结果可折叠溯源（标题 + 摘要 + 链接）
-
-</td>
-<td width="50%" valign="top">
-
-### 私有知识库（RAG）
-
-- 上传 txt / md / pdf / docx 构建个人知识库
-- 向量检索 + 来源引用
-- 临时文件附加到单次对话
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-### 技能系统
-
-- SKILL.md 格式，可创建 / 上传 / 编辑 / 启用停用
-- 技能按用户存储在 LangGraph Store，随对话按需加载
-- 内置技能校验与 `allowed-tools` 声明
-
-</td>
-<td width="50%" valign="top">
-
-### 用户与对话管理
-
-- 注册 / 登录（邮箱或昵称 + 密码）、JWT + httpOnly Cookie
-- 头像系统、个人中心、忘记密码（SMTP 重置）
-- 对话置顶 / 重命名 / 导出 Markdown / 全文搜索
-- 消息删除、错误重试、编辑后重新生成
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-### 交互体验
-
-- 液态玻璃 / 亚克力拟物质感（噪点 + 高光 + 多层投影）
-- 悬浮玻璃顶栏：消息滚动到顶部渐隐消失
-- 深浅主题切换 / 中英文双语
-- SSE 流式输出，智能滚动（翻历史不跟滚，完成自动回底）
-
-</td>
-<td width="50%" valign="top">
-
-### 可观测性
-
-- 统一日志系统：控制台 + 文件每日轮转（默认保留 14 天）
-- 请求级追踪（X-Request-Id + 用户上下文）
-- 前端全局错误捕获上报
-
-</td>
-</tr>
-</table>
+### 交互与工程
+- 液态玻璃 / 亚克力拟物质感，深浅主题切换，中英文双语
+- SSE 流式输出，智能滚动（翻看历史不跟随，完成后自动回底）
+- 对话置顶 / 重命名 / 导出 Markdown / 全文搜索，消息删除与重新生成
+- 注册 / 登录（邮箱或昵称）、JWT + httpOnly Cookie、头像与个人中心、忘记密码
+- 统一日志（控制台着色 + 文件每日轮转），请求级追踪 `X-Request-Id`
 
 ## 技术栈
 
-| 类别 | 选型 | 说明 |
-|:---:|---|---|
-| 后端 | FastAPI | 异步高性能 ASGI 框架 |
-| 代理引擎 | deepagents + LangChain | 多代理编排、子代理、HITL |
-| 模型 | DeepSeek V4.1 Flash（默认） | 原生多模态，OpenAI 兼容 |
-| 多供应商 | OpenAI 兼容协议 | 任意第三方接口 + 自定义 Base URL |
-| 密钥加密 | cryptography (Fernet) | API Key 对称加密存储 |
-| 联网搜索 | 博查 Search API | 专为 AI 优化的搜索 |
-| 知识库 | Chroma + 向量检索 | RAG 引用溯源 |
-| 数据库 | SQLite | WAL 模式，零配置 |
-| 认证 | bcrypt + JWT | httpOnly Cookie 传输 |
-| 前端 | Vue 3 + Vite | SFC 组件化 |
-| 高亮 | highlight.js | GitHub Dark 主题 |
-| 包管理 | uv + npm | Python + Node.js |
+| 类别 | 选型 |
+|:---:|---|
+| 后端框架 | FastAPI（ASGI） |
+| 代理引擎 | deepagents + LangGraph + LangChain |
+| 默认模型 | DeepSeek V4.1 Flash（OpenAI 兼容） |
+| 多供应商 | 任意 OpenAI 兼容接口 |
+| 密钥加密 | cryptography（Fernet） |
+| 联网搜索 | 博查 Search API |
+| 知识库 | Chroma + 向量检索 |
+| 数据库 | SQLite（WAL 模式） |
+| 认证 | bcrypt + JWT |
+| 前端 | Vue 3 + Vite |
+| 代码高亮 | highlight.js |
+| 包管理 | uv + npm |
 
 ## 快速开始
 
 ### 环境要求
 
-| 依赖 | 版本 | 安装方式 |
+| 依赖 | 版本 | 说明 |
 |:---:|:---:|---|
-| uv | latest | [官方安装指南](https://docs.astral.sh/uv/getting-started/installation/) |
-| Node.js | >= 18 | [nodejs.org](https://nodejs.org/) |
+| uv | latest | 自动管理 Python 版本与虚拟环境（[安装指南](https://docs.astral.sh/uv/getting-started/installation/)） |
+| Node.js | >= 18 | 仅构建前端时需要 |
 
-> uv 会自动管理 Python 版本和虚拟环境，无需手动安装 Python。
-
-### 安装与配置
+### 安装
 
 ```bash
-# 克隆项目
 git clone https://github.com/forward-aways/MeiKen-AI.git
 cd MeiKen-AI
 
-# 安装 Python（uv 自动下载所需版本）
+# 后端依赖（uv 自动下载 Python 3.13 并创建虚拟环境）
 uv python install 3.13
-
-# 安装后端依赖（自动创建虚拟环境）
 uv sync
 
-# 安装前端依赖
+# 前端依赖
 cd frontend && npm install && cd ..
 ```
 
-创建 `.env` 文件（所有项均可选，缺失时使用默认值）：
-
-```ini
-# 可选：首次启动时作为内置 DeepSeek 供应商的初始 Key
-# 留空则登录后在「管理模型」界面中自行配置
-DEEPSEEK_API_KEY="sk-your-key"
-DEEPSEEK_BASE_URL="https://api.deepseek.com"
-
-# 可选：联网搜索
-BOCHA_API_KEY="sk-your-bocha-key"
-
-# 生产环境务必修改
-JWT_SECRET="change-me-in-production"
-ADMIN_PASSWORD="admin123"
-
-# 可选：密码重置邮件（留空则终端打印链接）
-# SMTP_HOST=smtp.qq.com
-# SMTP_PORT=587
-# SMTP_USER=you@qq.com
-# SMTP_PASSWORD=授权码
-
-# 可选：日志与并发
-# LOG_LEVEL=INFO            # DEBUG / INFO / WARNING / ERROR
-# LOG_DIR=logs              # 日志目录（每日轮转，默认保留 14 天）
-# LOG_DAYS=14
-# MAX_CONCURRENT_RUNS=4
-```
-
-### 启动服务
+### 配置
 
 ```bash
-# 终端 1：后端
-uv run python main.py backend          # → http://127.0.0.1:8000
-
-# 终端 2：前端
-cd frontend && npm run dev             # → http://127.0.0.1:3000
+cp .env.example .env
 ```
 
-> 启动后访问 `http://127.0.0.1:8000/docs` 可查看 Swagger API 文档。
+按需修改 `.env`，生产环境至少修改 `JWT_SECRET` 与 `ADMIN_PASSWORD`。`DEEPSEEK_API_KEY` 与 `BOCHA_API_KEY` 可留空，登录后在界面中配置。
+
+### 启动
+
+```bash
+# 后端：http://127.0.0.1:8000
+uv run python main.py backend
+
+# 前端（开发模式，热更新）：http://127.0.0.1:3000
+uv run python main.py frontend
+```
+
+`main.py frontend` 会在 `frontend/dist` 不存在时自动构建，并以静态服务器方式启动。
+生产部署时更推荐先 `npm run build`，由后端直接托管构建产物。
+
+接口文档：`http://127.0.0.1:8000/docs`。
 
 ### 默认管理员
 
-首次启动且数据库无用户时会自动创建管理员账户：
+首次启动且数据库无用户时自动创建管理员账户：
 
-- **邮箱**：`admin@meiken.ai`
-- **密码**：由 `.env` 中的 `ADMIN_PASSWORD` 指定，默认为 `admin123`
+| 项目 | 值 |
+|---|---|
+| 邮箱 | `admin@meiken.ai` |
+| 密码 | `.env` 中的 `ADMIN_PASSWORD`（默认 `admin123`） |
 
-> ⚠️ 生产环境请务必修改 `ADMIN_PASSWORD`，并让其他用户自行注册账号，不要共用管理员账户。
+> 生产环境请修改 `ADMIN_PASSWORD`，并让其他使用者自行注册，不要共用管理员账户。
 
 ### 配置模型
 
-登录后点击任意模型胶囊 → 「管理模型」：
+登录后点击模型胶囊 → 「管理模型」：
 
-1. 内置 DeepSeek 供应商已自动创建，点击卡片填入自己的 API Key 即可使用
-2. 也支持添加任意 OpenAI 兼容供应商（自定义 Base URL、模型列表、上下文窗口）
+1. 内置 DeepSeek 供应商已自动创建，填入自己的 API Key 即可使用
+2. 也可添加任意 OpenAI 兼容供应商（自定义 Base URL、模型列表、上下文窗口）
 3. API Key 加密存储于本地数据库，不会上传任何第三方
 
 ## 项目结构
 
+<details>
+<summary>展开查看目录说明</summary>
+
 ```
 MeiKen-AI/
-├── main.py                         # 启动器
-├── pyproject.toml                  # Python 依赖
+├── main.py                      # 启动器（backend / frontend）
+├── pyproject.toml               # Python 依赖（uv）
+├── .env.example                 # 环境变量模板
+├── LICENSE
+├── README.md / README.en.md
 │
 ├── backend/
-│   ├── main.py                     # 应用装配（中间件 / 路由注册 / 生命周期）
-│   ├── config.py                   # 集中配置（环境变量 / 路径 / 默认值）
-│   ├── middleware.py               # 请求上下文中间件（请求 ID / 用户关联）
-│   ├── runtime.py                  # 运行时单例（工厂 / 检查点 / 并发闸门）
-│   ├── log.py                      # 日志系统（控制台高亮 + 文件每日轮转）
-│   ├── auth.py                     # JWT 认证 + 密码重置
-│   ├── crypto.py                   # API Key Fernet 加密
-│   ├── schemas.py                  # Pydantic 模型
-│   ├── skills.py                   # SKILL.md 校验 / 解析
-│   ├── rag.py                      # 知识库向量检索
-│   ├── db/                         # 数据访问层（按业务域拆分）
-│   │   ├── _core.py                # 连接管理 / 建表 / 迁移
-│   │   ├── users.py  convs.py  agents.py
-│   │   ├── providers.py  skills.py  kb.py  images.py
-│   ├── routes/                     # HTTP 路由
-│   │   ├── auth.py  convs.py  chat.py  agents.py
-│   │   ├── skills.py  kb.py  providers.py  images.py  misc.py
+│   ├── main.py                  # 应用装配（中间件 / 路由 / 生命周期 / 静态托管）
+│   ├── config.py                # 集中配置（环境变量 / 路径 / 默认值）
+│   ├── middleware.py            # 请求上下文中间件（X-Request-Id / 用户关联）
+│   ├── runtime.py               # 运行时单例（代理工厂 / 检查点 / 并发闸门）
+│   ├── log.py                   # 日志系统（控制台着色 + 文件每日轮转）
+│   ├── auth.py                  # JWT 认证 / 密码哈希 / 密码重置
+│   ├── crypto.py                # API Key Fernet 加密
+│   ├── schemas.py               # Pydantic 请求 / 响应模型
+│   ├── skills.py                # SKILL.md 校验与解析
+│   ├── rag.py                   # 知识库：切分 / 向量化 / 检索
+│   ├── workspace.py             # 用户文件工作区（路径安全 / 旧文件迁移）
+│   ├── db/                      # 数据访问层（按业务域拆分）
+│   │   ├── _core.py             # 连接管理 / 建表 / 列迁移
+│   │   └── users / convs / agents / providers / skills / kb / images
+│   ├── routes/                  # HTTP 路由层
+│   │   └── auth / convs / chat / agents / skills / kb / providers / images / files / misc
 │   ├── services/
-│   │   └── chat_stream.py          # SSE 编排（对话 / 审批共用）
-│   └── agent/                      # 多代理引擎（deepagents）
-│       ├── bridge.py               # 流式事件桥接（SSE 事件协议）
-│       ├── factory.py              # 代理工厂 + 缓存 + 审批中断
-│       ├── identity.py             # 人格 / 模式（general / code / work）
-│       ├── llm.py                  # 供应商解析 + DeepSeek 双模式
-│       ├── registry.py             # 内置代理与子代理定义
-│       └── tools.py                # 工具（联网搜索 / 知识库）
+│   │   └── chat_stream.py       # SSE 编排（对话与审批共用）
+│   ├── documents/               # 多格式文档解析
+│   │   └── parsers/             # text / csv / pdf / docx / xlsx / pptx / html + 注册表
+│   └── agent/                   # 多智能体引擎（deepagents）
+│       ├── bridge.py            # 流式事件桥接（SSE 事件协议）
+│       ├── factory.py           # 代理工厂 / 缓存 / 审批中断 / 文件系统后端
+│       ├── identity.py          # 人格与模式（general / code / work）
+│       ├── llm.py               # 供应商解析 + 模型构建
+│       ├── registry.py          # 内置代理与子代理定义
+│       └── tools.py             # 工具（联网搜索 / 知识库）
 │
-├── tests/                          # 后端测试
-│   └── test_smoke.py               # 核心接口冒烟测试（uv run --with pytest pytest tests/ -v）
+├── tests/                       # 后端测试（pytest）
+│   ├── test_smoke.py            # 核心接口冒烟测试
+│   ├── test_documents.py        # 文档解析测试
+│   └── test_files.py            # 文件工作区测试
 │
 ├── frontend/
-│   ├── package.json                # npm 依赖
-│   ├── vite.config.js              # Vite 配置（含 /api 代理）
+│   ├── package.json             # npm 依赖
+│   ├── vite.config.js           # Vite 配置（开发模式 /api 代理）
 │   └── src/
-│       ├── App.vue                 # 根组件 + SSE 流处理
-│       ├── store.js                # 全局响应式状态
-│       ├── api.js                  # 请求工具
-│       ├── i18n.js                 # 中英翻译
-│       ├── md.js                   # Markdown 渲染
-│       ├── logger.js               # 前端日志 + 全局错误捕获
-│       ├── experts.js              # 专家代理元数据
-│       ├── assets/main.css         # 玻璃材质系统 / 动画
-│       └── components/             # 页面与组件（约 20 个，见 frontend/src）
+│       ├── App.vue              # 根组件 + SSE 流处理
+│       ├── store.js / api.js / i18n.js / md.js / logger.js / experts.js
+│       ├── assets/main.css      # 玻璃材质系统 / 全局动画
+│       └── components/          # 页面与组件（约 20 个）
 │
-└── docs/                           # 参考文档（deepagents / DeepSeek API）
+├── nginx/
+│   └── meikenai.conf            # Nginx 反向代理示例
+│
+└── docs/                        # 文档
+    ├── DEPLOYMENT.md            # 部署指南
+    ├── API.md                   # 接口清单
+    ├── DATABASE.md              # 数据库结构
+    ├── deepagents官方参考文档/
+    └── deepseekAPI参考文档/
 ```
 
-## API 概览
-
-后端启动后，完整的 Swagger 文档位于 `http://127.0.0.1:8000/docs`。
-
-<details>
-<summary><b>认证接口</b></summary>
-
-| Method | Endpoint | 说明 |
-|---|---|---|
-| POST | `/api/auth/register` | 注册 |
-| POST | `/api/auth/login` | 登录（邮箱或昵称） |
-| GET | `/api/auth/me` | 当前用户信息 |
-| PUT | `/api/auth/profile` | 更新个人信息 |
-| PUT | `/api/auth/password` | 修改密码 |
-| POST | `/api/auth/logout` | 退出登录 |
-| POST | `/api/auth/forgot-password` | 发送重置邮件 |
-| POST | `/api/auth/reset-password` | 重置密码 |
-
 </details>
 
-<details>
-<summary><b>对话接口</b></summary>
+## 运行测试
 
-| Method | Endpoint | 说明 |
-|---|---|---|
-| GET | `/api/conversations` | 对话列表 |
-| POST | `/api/conversations` | 新建对话 |
-| GET | `/api/conversations/{id}` | 对话详情 + 消息 |
-| PATCH | `/api/conversations/{id}` | 重命名 / 置顶 |
-| DELETE | `/api/conversations/{id}` | 删除对话 |
-| DELETE | `/api/conversations/{id}/messages/{mid}` | 删除单条消息 |
-
-</details>
-
-<details>
-<summary><b>聊天接口（核心）</b></summary>
-
-```
-POST /api/chat/{conversation_id}
+```bash
+uv run --with pytest python -m pytest tests/ -v
 ```
 
-**请求体：**
-
-```json
-{
-  "message": "帮我分析这份数据",
-  "image_ids": [],
-  "enable_search": true,
-  "enable_thinking": true,
-  "enable_rag": false,
-  "rag_files": [],
-  "agent_id": 1,
-  "model": "deepseek-flash",
-  "reasoning_effort": "high",
-  "mode": "general"
-}
-```
-
-**SSE 事件流：**
-
-| 事件 | 说明 |
-|---|---|
-| `{"type":"token","token":"..."}` | 回答内容（流式累加） |
-| `{"type":"reasoning","reasoning":"..."}` | 思考过程 |
-| `{"type":"todo","todos":[...]}` | 计划清单快照 |
-| `{"type":"tool_call","tool":"...","args":{}}` | 工具调用卡片 |
-| `{"type":"tool_result","tool":"...","result":"..."}` | 工具结果 |
-| `{"status":"sub_started","subagent":"..."}` | 子代理开始 |
-| `{"status":"sub_done","subagent":"..."}` | 子代理完成 |
-| `{"type":"approval_request","action_id":1,...}` | 等待人工审批 |
-| `{"status":"run_end","tokens":123}` | 运行结束 |
-| `{"error":"..."}` | 异常信息 |
-
-</details>
-
-<details>
-<summary><b>代理与运行</b></summary>
-
-| Method | Endpoint | 说明 |
-|---|---|---|
-| GET / POST | `/api/agents` | 代理列表 / 创建 |
-| PATCH / DELETE | `/api/agents/{id}` | 更新 / 删除代理 |
-| POST | `/api/approvals/{action_id}` | 审批（approve / reject / edit） |
-| POST | `/api/runs/{run_id}/stop` | 停止运行 |
-
-</details>
-
-<details>
-<summary><b>知识库 / 技能 / 图片</b></summary>
-
-| Method | Endpoint | 说明 |
-|---|---|---|
-| POST | `/api/kb/upload` | 上传知识库文件 |
-| GET | `/api/kb/files` | 文件列表 |
-| DELETE | `/api/kb/files/{id}` | 删除文件 |
-| GET / POST | `/api/skills` | 技能列表 / 创建 |
-| GET / PATCH / DELETE | `/api/skills/{id}` | 技能详情 / 更新 / 删除 |
-| POST | `/api/skills/upload` | 上传 SKILL.md |
-| POST | `/api/images` | 上传图片（多模态） |
-| GET | `/api/images/{id}` | 获取图片（鉴权） |
-
-</details>
-
-<details>
-<summary><b>模型供应商</b></summary>
-
-| Method | Endpoint | 说明 |
-|---|---|---|
-| GET / POST | `/api/providers` | 供应商列表 / 添加 |
-| PATCH / DELETE | `/api/providers/{id}` | 更新 / 删除（内置不可删） |
-| POST | `/api/providers/{id}/test` | 连接测试 |
-
-</details>
-
-<details>
-<summary><b>其他接口</b></summary>
-
-| Method | Endpoint | 说明 |
-|---|---|---|
-| GET | `/api/search?q=keyword` | 全文搜索消息 |
-| GET | `/api/health` | 健康检查 |
-
-</details>
-
-## 数据库
-
-SQLite WAL 模式，文件 `chat.db` 首次运行时自动创建。
-
-| 表名 | 说明 |
-|---|---|
-| `users` | 用户账户（资料 / 头像 / 角色） |
-| `conversations` | 对话记录（标题 / 置顶 / 时间） |
-| `messages` | 消息内容（含图片引用） |
-| `knowledge_files` | 知识库文件 |
-| `agents` | 自定义代理配置 |
-| `agent_runs` | 代理运行记录（工具 / 待办 / tokens） |
-| `approvals` | 人工审批请求与决策 |
-| `skills` | 技能（SKILL.md 元数据） |
-| `skill_overrides` | 用户技能启用状态 |
-| `providers` | 模型供应商（API Key 加密存储） |
-| `images` | 上传图片（多模态消息） |
+> 首次运行包含知识库的测试时，Chroma 会下载一个约 79MB 的嵌入模型，耗时取决于网络。
+> Windows 下若出现临时目录权限错误，追加 `--basetemp=%TEMP%\pytest-tmp -p no:cacheprovider`。
 
 ## 部署
 
-### Nginx 反向代理
-
-项目自带 Nginx 配置文件 `nginx/meikenai.conf`，将 8080 端口反向代理到 FastAPI 后端（127.0.0.1:8000）。
+生产形态：Nginx 反向代理 → FastAPI（后端同时托管前端构建产物）。
 
 ```bash
-# 复制配置到 Nginx
-sudo cp nginx/meikenai.conf /etc/nginx/sites-available/meikenai.conf
-sudo ln -sf /etc/nginx/sites-available/meikenai.conf /etc/nginx/sites-enabled/
+# 1. 安装依赖
+uv sync
+cd frontend && npm install && npm run build && cd ..
 
-# 测试并重载
-sudo nginx -t && sudo systemctl reload nginx
+# 2. 配置环境变量（至少修改 JWT_SECRET / ADMIN_PASSWORD）
+cp .env.example .env && vi .env
+
+# 3. 启动
+uv run python main.py backend
 ```
 
-> 注意：域名未备案时，国内云厂商会拦截 80/443/8080 等常见 Web 端口。可临时使用 IP 直连访问，如 `http://<服务器IP>:8080`。
+完整的服务器部署步骤（前置条件、systemd 开机自启、Nginx 配置、更新流程、常见问题）见 **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**。
 
-### 后端 systemd 服务（开机自启 + 崩溃重启）
+**服务器安全要点**
 
-```bash
-sudo tee /etc/systemd/system/meikenai.service > /dev/null << 'EOF'
-[Unit]
-Description=MeiKen AI Backend
-After=network.target
+- 使用全新数据库，不要拷贝本地 `chat.db`
+- `.env` 中不要写 `DEEPSEEK_API_KEY`，由使用者登录后自行配置
+- 不要拷贝 `config/fernet.key`（它用于解密数据库中的 API Key）
 
-[Service]
-Type=simple
-User=ubuntu
-WorkingDirectory=/home/ubuntu/ai-project/MeiKen-AI
-ExecStart=/home/ubuntu/.local/bin/uv run python main.py backend
-Restart=always
-RestartSec=3
+## 文档
 
-[Install]
-WantedBy=multi-user.target
-EOF
-
-sudo systemctl daemon-reload
-sudo systemctl enable meikenai
-sudo systemctl start meikenai
-```
-
-常用管理命令：
-
-| 操作 | 命令 |
+| 文档 | 内容 |
 |---|---|
-| 查看状态 | `sudo systemctl status meikenai` |
-| 查看日志 | `sudo journalctl -u meikenai -f` |
-| 重启 | `sudo systemctl restart meikenai` |
-| 停止 | `sudo systemctl stop meikenai` |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | 服务器部署、Nginx、systemd、更新与排错 |
+| [docs/API.md](docs/API.md) | 全部 HTTP 接口与 SSE 事件协议 |
+| [docs/DATABASE.md](docs/DATABASE.md) | SQLite 表结构与字段说明 |
+| [docs/deepagents官方参考文档/](docs/deepagents官方参考文档) | deepagents 参考资料 |
+| [docs/deepseekAPI参考文档/](docs/deepseekAPI参考文档) | DeepSeek API 参考资料 |
 
-### 更新部署
+## 贡献
 
-```bash
-# 后端：拉取代码 + 重启服务
-git pull && uv sync
-sudo systemctl restart meikenai
+欢迎提交 Issue 与 Pull Request。提交前请：
 
-# 前端：重新构建（Nginx 无需重启，浏览器 Ctrl+Shift+R 强制刷新）
-cd frontend && npm install && npm run build
-```
+1. 运行 `uv run --with pytest python -m pytest tests/ -v` 确保测试通过
+2. 保持代码注释与日志使用中文（工具 docstring 保持英文）
 
-### 安全提示：不要在服务端携带个人 API Key
+## 致谢
 
-如果你要把项目部署为公共服务：
+本项目基于以下开源项目与平台构建：
 
-1. 使用**全新数据库**（不要拷贝本地 `chat.db`）
-2. `.env` 中**不要写** `DEEPSEEK_API_KEY`，登录后在界面中配置
-3. 不要拷贝 `config/fernet.key`（它用于解密数据库中的 Key）
-
-这样内置供应商将以「未配置」状态运行，每位使用者在「管理模型」界面填入自己的 Key（加密存储，按用户隔离）。
+- [deepagents](https://github.com/langchain-ai/deepagents) / [LangGraph](https://github.com/langchain-ai/langgraph) / [LangChain](https://github.com/langchain-ai/langchain)
+- [FastAPI](https://github.com/fastapi/fastapi) / [Vue 3](https://github.com/vuejs/core) / [Vite](https://github.com/vitejs/vite)
+- [Chroma](https://github.com/chroma-core/chroma) 向量库
+- [DeepSeek](https://www.deepseek.com/) 模型服务与 [博查](https://bochaai.com/) 搜索 API
 
 ## License
 
-MIT
+[MIT](LICENSE)
