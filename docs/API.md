@@ -96,6 +96,21 @@ POST /chat/{conversation_id}
 
 > 多数事件带 `agent` 字段，标识事件来源是主代理还是子代理。
 
+**事件契约（不变量，前端分发依赖）**
+
+1. 每个事件**恰好**有一个判别符：`status` 或 `type`；终态为 `done` / `error`。
+2. 消费者**禁止**按普通字段判断事件类型（例如 `if (ev.tokens)`）——该字段会在多个
+   事件间复用，一旦更具体的事件先带上它，其专属分支会被静默吞掉。历史上
+   `run_end` 因携带 `tokens` 被误判为普通事件，导致最终答案未能写回。
+3. `run_end` 对每个 run 恰好应用一次：写回 `final_text`、清空 `phase`、累加上下文用量。
+4. `thinking_done` **必先于**触发它的 `token` / `tool_call` 产出，且仅在本回合确有
+   思考时产出（不产出空事件）。
+5. `searching` / `searched` / `rag_loaded` 已淘汰：搜索状态统一由 `tool_call` /
+   `tool_result` 表达（前端渲染为执行时间线）。
+
+> 前端分发实现见 `frontend/src/sse.js`，契约测试见
+> `frontend/src/__tests__/sse.test.js` 与 `tests/test_bridge_events.py`。
+
 ### 运行控制
 
 | Method | Endpoint | 说明 |

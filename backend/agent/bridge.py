@@ -6,6 +6,7 @@
 事件协议（扩展版）：
     {"agent":<name>,"type":"token","token":...}            实时正文
     {"agent":<name>,"type":"reasoning","reasoning":...}    思考增量
+    {"agent":<name>,"type":"thinking_done","seconds":...}  思考结束（本回合首次产出正文/工具调用时结算）
     {"agent":<name>,"type":"todo","todos":[...]}           任务清单快照
     {"agent":<name>,"type":"tool_call","id","tool","args"} 工具调用卡片
     {"agent":<name>,"type":"tool_result","id","tool","result","sources"?} 工具结果
@@ -13,8 +14,13 @@
     {"agent":<name>,"status":"sub_done","subagent"}            子代理完成
     {"agent":<name>,"type":"approval_request","action_id","tool","args","allowed"}
     {"agent":<name>,"status":"run_end","interrupted","run_id","tokens","final_text"}
+
+契约（不变量）：每个事件恰好有一个判别符——``status`` 或 ``type``；
+``thinking_done`` 必先于触发它的 ``token`` / ``tool_call`` 产出，
+且仅在本回合确有思考时产出。
 """
 import base64
+import time
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 from langgraph.errors import GraphInterrupt
@@ -59,11 +65,29 @@ class RunCtx:
         self.task_names: dict[str, str] = {}
 
 
+def _thinking_done_event(agent: str, tokens_box: dict) -> dict | None:
+    """结算本回合思考耗时；已结算或未思考时返回 None（幂等）。
+
+    仅在首次调用时产出事件，保证 ``thinking_done`` 对每个 run 至多一次。
+    """
+    t0 = tokens_box.get("think_t0")
+    if t0 is None or tokens_box.get("think_closed"):
+        return None
+    tokens_box["think_closed"] = True
+    return {"agent": agent, "type": "thinking_done",
+            "seconds": round(time.perf_counter() - t0, 1)}
+
+
 async def _handle_message_chunk(chunk, meta: dict, agent_name: str, tokens_box: dict):
     """处理流式消息增量：正文 / 思考 / 用量。"""
     agent = _agent_from_meta(meta, agent_name)
     content = chunk.content if hasattr(chunk, "content") else ""
     if content:
+        # 模型开始产出正文，说明思考已结束：先结算 thinking_done，
+        # 再发送正文，保证前端先离开"思考中"状态。
+        done_ev = _thinking_done_event(agent, tokens_box)
+        if done_ev:
+            yield done_ev
         # 累积当前回合文本；工具回合会将其重置，
         # 因此到 run_end 时保留下来的只有最终回答。
         tokens_box["turn_text"] = tokens_box.get("turn_text", "") + content
@@ -74,6 +98,9 @@ async def _handle_message_chunk(chunk, meta: dict, agent_name: str, tokens_box: 
     except Exception:
         rc = ""
     if rc:
+        if tokens_box.get("think_t0") is None:
+            tokens_box["think_t0"] = time.perf_counter()
+            tokens_box["think_closed"] = False
         yield {"agent": agent, "type": "reasoning", "reasoning": rc}
     um = getattr(chunk, "usage_metadata", None)
     if um:
@@ -185,9 +212,12 @@ async def _stream(
                     elif node == "model":
                         for out in _handle_model_update(update, ctx):
                             # 本回合模型决定使用工具：此前输出的文本属于过程辞令，
-                            # 从最终回答中剔除。
+                            # 从最终回答中剔除，并结算思考耗时。
                             if out.get("type") == "tool_call" or out.get("status") == "sub_started":
                                 tokens_box["turn_text"] = ""
+                                done_ev = _thinking_done_event(agent_name, tokens_box)
+                                if done_ev:
+                                    yield done_ev
                             yield out
                     elif node == "tools":
                         for out in _handle_tools_update(update, ctx):
@@ -200,6 +230,10 @@ async def _stream(
                 break
     except GraphInterrupt:
         status.interrupted = True
+    # 兜底：本回合只思考、未产出正文或工具调用时，仍在结束前结算思考耗时
+    done_ev = _thinking_done_event(agent_name, tokens_box)
+    if done_ev:
+        yield done_ev
     yield {"agent": agent_name, "status": "run_end", "interrupted": status.interrupted,
            "run_id": run_id, "tokens": tokens_box["tokens"],
            "final_text": tokens_box.get("turn_text", "")}
@@ -243,7 +277,7 @@ async def stream_agent_run(agent, user_message: str, thread_id: str, run_id: int
     会以内联 base64 data URL 形式提供给多模态模型。
     """
     status = RunStatus()
-    tokens_box = {"tokens": 0}
+    tokens_box = {"tokens": 0, "think_t0": None, "think_closed": True}
     inp = {"messages": [HumanMessage(content=build_human_content(user_message, images))]}
     async for out in _stream(agent, inp, thread_id, run_id, agent_name, status, tokens_box):
         yield out
@@ -252,7 +286,7 @@ async def stream_agent_run(agent, user_message: str, thread_id: str, run_id: int
 async def stream_agent_resume(agent, decisions: list[dict], thread_id: str, run_id: int, agent_name: str):
     """用 Command(resume=...) 恢复因审批暂停的运行并流式输出事件。"""
     status = RunStatus()
-    tokens_box = {"tokens": 0}
+    tokens_box = {"tokens": 0, "think_t0": None, "think_closed": True}
     cmd = Command(resume={"decisions": decisions})
     async for out in _stream(agent, cmd, thread_id, run_id, agent_name, status, tokens_box):
         yield out

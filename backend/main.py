@@ -42,6 +42,24 @@ _CHECKPOINTS_DB = os.path.join(BASE_DIR, "checkpoints.db")
 _FRONTEND_DIST = os.path.join(BASE_DIR, "frontend", "dist")
 
 
+async def _close_aiosqlite_conns(resources: list[tuple[str, object]]) -> None:
+    """逐个关闭资源持有的 aiosqlite 连接。
+
+    aiosqlite 为每个连接启动一个**非 daemon** 工作线程，只有 close() 会让它退出；
+    遗漏任一连接都会让解释器在退出前永久等待（Ctrl+C 卡死）。
+    逐项容错：单个失败不得中断关闭流程，也不得向上抛异常
+    （否则 uvicorn 会误报 "ASGI 'lifespan' protocol appears unsupported"）。
+    """
+    for label, resource in resources:
+        conn = getattr(resource, "conn", None) if resource is not None else None
+        if conn is None:
+            continue
+        try:
+            await conn.close()
+        except Exception:
+            log.exception("关闭 %s 连接失败", label)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
@@ -71,7 +89,11 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    await runtime.saver.conn.close()
+    # 释放启动段创建的全部 aiosqlite 连接（资源获取与释放必须对称）
+    await _close_aiosqlite_conns([("store", runtime.store), ("saver", runtime.saver)])
+    runtime.store = None
+    runtime.saver = None
+    runtime.factory = None
     log.info("MeiKen AI 已停止")
 
 

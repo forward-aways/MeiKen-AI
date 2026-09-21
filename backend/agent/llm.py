@@ -105,6 +105,10 @@ def build_llm(
             reasoning_effort=reasoning_effort,
             temperature=temperature,
             max_tokens=max_tokens,
+            # 显式开启流式用量上报：langchain-openai 仅在 base_url 等参数全为 None 时
+            # 才自动开启，而本项目始终传 base_url，故必须显式声明，否则
+            # usage_metadata 恒为空 → 上下文用量恒为 0（见 ADR-20260921-CapsuleAndContextMeter）
+            stream_usage=True,
             **kwargs,
         )
     log.debug("构建 LLM | provider=%s model=%s 风格=标准", provider["name"], model)
@@ -114,5 +118,7 @@ def build_llm(
         base_url=base_url,
         temperature=temperature,
         max_tokens=max_tokens,
+        # 标准 OpenAI 兼容端点不显式开启：部分第三方实现不支持
+        # stream_options.include_usage，开启会导致请求被拒（泛化边界）
         **kwargs,
     )
