@@ -1,8 +1,10 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { t, locale, mode } from '../store.js'
+import { useImageAttachments } from '../attachments.js'
 import KBPill from './KBPill.vue'
 import AgentOptions from './AgentOptions.vue'
+import AttachPreview from './AttachPreview.vue'
 
 const emit = defineEmits(['send', 'tempFile'])
 const typewriterText = ref('')
@@ -12,7 +14,17 @@ const landingKey = ref(0)
 const landingEl = ref(null)
 const tempFileInput = ref(null)
 const tempFileName = ref('')
+const imageInput = ref(null)
 let _typeTimer = null
+
+// 图片附件行为来自共享组合式函数（与聊天输入框同一实现）
+const {
+  pendingImages, dragOver, uploadingCount, readyIds,
+  onImageChange, onPaste, onDrop, onDragOver, removeImage, clearImages,
+} = useImageAttachments()
+
+const canSend = computed(() => uploadingCount.value === 0 &&
+  (localInput.value.trim() || readyIds.value.length))
 
 const chips = computed(() => {
   if (mode.value === 'code') return t('tipsCode')
@@ -26,8 +38,14 @@ const descText = computed(() => {
   return t('desc')
 })
 
-function sendMsg(text) {
-  emit('send', text)
+// 提示胶囊会直接传入文本（此时输入框可能为空），因此不能以 canSend 作为闸门；
+// 只校验"有内容且没有图片仍在上传"。
+function sendMsg(text, ids = readyIds.value) {
+  const content = (text || '').trim()
+  if (!content && !ids.length) return
+  if (uploadingCount.value > 0) return
+  emit('send', content, ids)
+  clearImages()
   tempFileName.value = ''
 }
 
@@ -77,7 +95,7 @@ function resizeTA(el) {
 function onKeydown(e) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
-    if (localInput.value.trim()) sendMsg(localInput.value)
+    if (canSend.value) sendMsg(localInput.value)
   }
 }
 
@@ -104,12 +122,15 @@ defineExpose({ runTypewriter })
       <p :class="{ 'desc-reveal': typewriterDone }">{{ descText }}</p>
     </div>
 
-    <div class="landing-input">
-      <textarea ref="landingEl" v-model="localInput" :placeholder="t('ph')" @keydown="onKeydown" @input="resizeTA($event.target)" rows="1"></textarea>
+    <div class="landing-input glass-input" :class="{ 'drag-over': dragOver }"
+         @dragover="onDragOver" @dragleave="dragOver = false" @drop="onDrop">
+      <AttachPreview :images="pendingImages" @remove="removeImage" />
+      <textarea ref="landingEl" v-model="localInput" :placeholder="t('ph')" @keydown="onKeydown" @input="resizeTA($event.target)" @paste="onPaste" rows="1"></textarea>
       <div class="landing-toolbar">
         <AgentOptions />
         <KBPill />
         <input ref="tempFileInput" type="file" accept=".txt,.md,.pdf,.docx" @change="onTempFileChange" style="display:none" />
+        <input ref="imageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple style="display:none" @change="onImageChange" />
         <div v-if="tempFileName" class="temp-file-tag">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           <span>{{ tempFileName }}</span>
@@ -117,11 +138,14 @@ defineExpose({ runTypewriter })
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
-        <button class="attach-btn" @click="tempFileInput?.click()" :title="t('uploadFile')">
+        <button class="attach-btn glass-icon-btn" @click="imageInput?.click()" :title="t('imageUpload')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        </button>
+        <button class="attach-btn glass-icon-btn" @click="tempFileInput?.click()" :title="t('uploadFile')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
         </button>
         <div class="toolbar-spacer"></div>
-        <button @click="sendMsg(localInput)" :disabled="!localInput.trim()" :title="t('send')" class="send-btn">
+        <button @click="sendMsg(localInput)" :disabled="!canSend" :title="t('send')" class="send-btn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
         </button>
       </div>
@@ -129,7 +153,7 @@ defineExpose({ runTypewriter })
 
     <div class="prompts">
       <span class="prompts-label">{{ t('tryHint') }}</span>
-      <button v-for="(q, i) in promptList" :key="i" class="prompt-chip" @click="sendMsg(q)">
+      <button v-for="(q, i) in promptList" :key="i" class="prompt-chip glass-chip" @click="sendMsg(q)">
         <span>{{ q }}</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
       </button>
@@ -146,21 +170,16 @@ defineExpose({ runTypewriter })
 .dashboard h2 { font-size: 28px; font-weight: 700; margin-bottom: .5rem; letter-spacing: -.4px; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 .type-cursor { display: inline-block; color: var(--accent); margin-left: 1px; font-weight: 400; animation: blink .8s step-end infinite; }
-.dashboard p { color: var(--text-secondary); font-size: 15.5px; max-width: 460px; line-height: 1.6; margin-bottom: 1.6rem; opacity: 0; transform: translateY(8px); }
+/* 副标题：max-width 留足余量 + text-wrap: pretty 避免孤字（断行策略不依赖文案长度） */
+.dashboard p { color: var(--text-secondary); font-size: 15.5px; max-width: 520px; line-height: 1.6; margin-bottom: 1.6rem; opacity: 0; transform: translateY(8px); text-wrap: pretty; }
 .dashboard p.desc-reveal { opacity: 1; transform: translateY(0); transition: opacity .5s var(--ease), transform .5s var(--ease); }
+/* 材质（染色/噪点/模糊/高光/边缘/投影/焦点/拖拽态）来自全局 .glass-input，
+   唯一事实源；此处只保留布局与入场动画。 */
 .landing-input {
   width: 100%; max-width: 740px;
   border-radius: var(--radius-lg);
-  background: linear-gradient(180deg, rgba(255,255,255,.94), rgba(255,255,255,.84));
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1.5px solid var(--border-strong);
-  box-shadow: var(--shadow-ambient), var(--shadow-key);
-  transition: border-color .25s var(--ease), box-shadow .25s var(--ease);
   animation: fadeSlide .55s var(--spring) .2s both;
 }
-[data-theme="dark"] .landing-input { background: linear-gradient(180deg, rgba(32,35,52,.94), rgba(27,30,46,.86)); }
-.landing-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(91,87,210,.12), var(--shadow-ambient), var(--shadow-key); }
 .landing-input textarea { width: 100%; padding: 1.2rem 1.2rem .3rem 1.2rem; border: none; outline: none; background: transparent; color: var(--text); font-size: 17px; font-family: var(--font); resize: none; line-height: 1.55; min-height: 80px; max-height: 260px; display: block; overflow: hidden; }
 .landing-input textarea::placeholder { color: var(--text-muted); }
 .landing-toolbar { display: flex; align-items: center; gap: 8px; padding: 0 8px 8px 8px; }
@@ -169,8 +188,8 @@ defineExpose({ runTypewriter })
 .send-btn:hover { background: var(--accent-hover); transform: scale(1.06); }
 .send-btn:active { transform: scale(.92); transition-duration: .08s; }
 .send-btn:disabled { opacity: .35; cursor: not-allowed; transform: none; box-shadow: none; }
-.attach-btn { flex-shrink: 0; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; border: 1.5px solid var(--border-strong); background: transparent; color: var(--text-secondary); cursor: pointer; transition: all .2s var(--ease); }
-.attach-btn:hover { background: var(--border); color: var(--accent); border-color: var(--accent); transform: translateY(-1px); }
+/* 材质来自全局 .glass-icon-btn（凸起毛玻璃）；此处只保留布局 */
+.attach-btn { flex-shrink: 0; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; cursor: pointer; }
 .temp-file-tag { display: flex; align-items: center; gap: 4px; padding: 3px 8px 3px 10px; border-radius: 16px; background: var(--accent-soft); color: var(--accent); font-size: 12.5px; max-width: 180px; animation: kbIn .15s var(--ease); }
 .temp-file-tag svg { flex-shrink: 0; }
 .temp-file-tag span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -179,32 +198,16 @@ defineExpose({ runTypewriter })
 @keyframes kbIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 .prompts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; justify-content: center; margin-top: 1.8rem; animation: fadeSlide .55s var(--spring) .35s both; }
 .prompts-label { font-size: 13px; color: var(--text-muted); margin-right: 2px; }
+/* 材质来自全局 .glass-chip（凸起毛玻璃·轻）；此处只保留布局 */
 .prompt-chip {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 8px 15px;
   border-radius: 999px;
-  font-size: 13.5px; font-family: var(--font); color: var(--text-secondary);
+  font-size: 13.5px; font-family: var(--font);
   cursor: pointer; user-select: none;
-  background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.045'/></svg>"),
-    linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.3));
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255,255,255,.65);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.75), 0 4px 16px rgba(20,18,60,.08);
-  transition: all .2s var(--spring);
 }
 .prompt-chip svg { color: var(--accent); opacity: 0; transform: translateX(-4px); transition: all .18s var(--ease); }
-.prompt-chip:hover { transform: translateY(-2px); color: var(--accent); border-color: rgba(91,87,210,.35); box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 6px 20px rgba(91,87,210,.14); }
 .prompt-chip:hover svg { opacity: 1; transform: translateX(0); }
-.prompt-chip:active { transform: scale(.96); transition-duration: .08s; }
-[data-theme="dark"] .prompt-chip {
-  background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
-    linear-gradient(180deg, rgba(44,48,72,.6), rgba(30,33,52,.42));
-  border-color: rgba(255,255,255,.12);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 4px 16px rgba(0,0,0,.25);
-}
 
 @media (max-width: 768px) {
   .dashboard { padding: 5vh 1rem 3vh; }

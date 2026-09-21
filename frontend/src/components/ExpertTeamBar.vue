@@ -40,7 +40,7 @@ function choose(name) {
   display: flex; align-items: center; gap: 5px; padding: 3px 6px; border-radius: 14px;
   border: 1px solid rgba(255,255,255,.55);
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
+    var(--noise-subtle),
     linear-gradient(180deg, rgba(255,255,255,.42), rgba(255,255,255,.2));
   backdrop-filter: blur(18px) saturate(180%);
   -webkit-backdrop-filter: blur(18px) saturate(180%);
@@ -49,7 +49,7 @@ function choose(name) {
 [data-theme="dark"] .expert-strip {
   border-color: rgba(255,255,255,.09);
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
+    var(--noise-medium),
     linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.025));
   box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
 }

@@ -199,7 +199,7 @@ onMounted(() => {
   border-radius: var(--radius-lg);
   border: 1px solid rgba(255,255,255,.7);
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
+    var(--noise-subtle),
     linear-gradient(180deg, rgba(255,255,255,.72), rgba(255,255,255,.45));
   backdrop-filter: blur(36px) saturate(190%);
   -webkit-backdrop-filter: blur(36px) saturate(190%);
@@ -209,7 +209,7 @@ onMounted(() => {
 [data-theme="dark"] .login-card {
   border-color: rgba(255,255,255,.12);
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
+    var(--noise-subtle),
     linear-gradient(180deg, rgba(44,48,72,.75), rgba(30,33,52,.6));
   box-shadow: inset 0 1px 0 rgba(255,255,255,.1), var(--shadow-lg);
 }

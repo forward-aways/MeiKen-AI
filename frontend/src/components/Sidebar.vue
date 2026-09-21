@@ -283,7 +283,7 @@ watch(systemPrompt, v => { localStorage.setItem('mk-sysprompt', v) })
   border-radius: 11px;
   position: relative;
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.045'/></svg>"),
+    var(--noise-soft),
     linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.3));
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -293,7 +293,7 @@ watch(systemPrompt, v => { localStorage.setItem('mk-sysprompt', v) })
 }
 [data-theme="dark"] .mode-switch {
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
+    var(--noise-medium),
     linear-gradient(180deg, rgba(44,48,72,.6), rgba(30,33,52,.42));
   border-color: rgba(255,255,255,.12);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 2px 10px rgba(0,0,0,.22);
@@ -344,7 +344,7 @@ watch(systemPrompt, v => { localStorage.setItem('mk-sysprompt', v) })
   pointer-events: none;
   border: 1px solid rgba(91,87,210,.4);
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
+    var(--noise-medium),
     linear-gradient(180deg, rgba(124,121,247,.22), rgba(91,87,210,.13) 55%, rgba(124,121,247,.18));
   backdrop-filter: blur(24px) saturate(190%);
   -webkit-backdrop-filter: blur(24px) saturate(190%);
@@ -358,7 +358,7 @@ watch(systemPrompt, v => { localStorage.setItem('mk-sysprompt', v) })
 [data-theme="dark"] .nav-pill {
   border-color: rgba(126,121,247,.5);
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
+    var(--noise-medium),
     linear-gradient(180deg, rgba(126,121,247,.3), rgba(91,87,210,.2) 55%, rgba(126,121,247,.26));
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.16),

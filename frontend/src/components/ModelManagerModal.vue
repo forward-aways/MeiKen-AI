@@ -225,7 +225,7 @@ function close() {
 <template>
   <Teleport to="body">
     <div class="pmm-overlay" @click.self="close">
-      <div class="pmm-card glass-pop">
+      <div class="pmm-card glass-dialog">
         <div class="pmm-head">
           <h3 class="pmm-title">{{ t('providerTitle') }}</h3>
           <button class="pmm-x" @click="close">
@@ -328,7 +328,7 @@ function close() {
 
         <!-- Unified config dialog: API key + models only -->
         <div v-if="dialog" class="pmm-dlg-overlay" @click.self="dialog = null">
-          <div class="pmm-dlg-card glass-pop">
+          <div class="pmm-dlg-card glass-dialog">
             <div class="pmm-dlg-title">
               {{ dialog.mode === 'create' ? t('configureProvider') : t('editProvider') }}
               <b>{{ dlg.name || dialog.preset?.name }}</b>
@@ -386,38 +386,16 @@ function close() {
 <style scoped>
 .pmm-overlay {
   position: fixed; inset: 0; z-index: 90;
-  background: rgba(15,17,27,.35); backdrop-filter: blur(6px);
+  /* 遮罩层不使用 backdrop-filter：它会创建 backdrop root，令卡片的后背模糊失效 */
+  background: rgba(15,17,27,.46);
   display: flex; align-items: center; justify-content: center; padding: 1rem;
   animation: fadeIn .18s ease;
 }
+/* 材质来自全局 .glass-dialog（近实心毛玻璃），此处只保留布局 */
 .pmm-card {
   position: relative;
   width: min(720px, 100%); max-height: 84vh; display: flex; flex-direction: column;
   border-radius: 18px; padding: 22px 24px;
-  background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
-    linear-gradient(180deg, rgba(255,255,255,.99), rgba(246,245,255,.975));
-  backdrop-filter: blur(60px) saturate(200%);
-  -webkit-backdrop-filter: blur(60px) saturate(200%);
-  border: 1px solid rgba(255,255,255,.7);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,1),
-    inset 0 -1px 0 rgba(20,18,60,.05),
-    0 1px 2px rgba(20,18,60,.06),
-    0 10px 26px rgba(20,18,60,.14),
-    0 28px 68px rgba(20,18,60,.22);
-}
-[data-theme="dark"] .pmm-card {
-  background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
-    linear-gradient(180deg, rgba(50,54,82,.99), rgba(36,39,62,.975));
-  border-color: rgba(255,255,255,.14);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.1),
-    inset 0 -1px 0 rgba(0,0,0,.35),
-    0 1px 2px rgba(0,0,0,.25),
-    0 12px 28px rgba(0,0,0,.38),
-    0 32px 72px rgba(0,0,0,.5);
 }
 .pmm-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .pmm-title { font-size: 17px; font-weight: 700; margin: 0; }
@@ -437,7 +415,7 @@ function close() {
   padding: 13px 15px; border-radius: 14px;
   border: 1px solid rgba(255,255,255,.65);
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
+    var(--noise-subtle),
     linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.26));
   backdrop-filter: blur(18px) saturate(180%);
   -webkit-backdrop-filter: blur(18px) saturate(180%);
@@ -448,7 +426,7 @@ function close() {
 [data-theme="dark"] .pmm-item {
   border-color: rgba(255,255,255,.1);
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
+    var(--noise-medium),
     linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.03));
   box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 3px 12px rgba(0,0,0,.25);
 }
@@ -472,7 +450,7 @@ function close() {
 .pmm-chip {
   font-size: 11px; padding: 3px 9px; border-radius: 7px; font-weight: 600;
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
+    var(--noise-medium),
     linear-gradient(180deg, rgba(124,121,247,.14), rgba(91,87,210,.07));
   color: var(--text-secondary);
   border: 1px solid rgba(91,87,210,.2);
@@ -511,7 +489,7 @@ function close() {
 .pmm-switch.on {
   border-color: rgba(91,87,210,.5);
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
+    var(--noise-medium),
     linear-gradient(180deg, rgba(124,121,247,.85), rgba(91,87,210,.8));
   box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 2px 8px rgba(91,87,210,.35);
 }
@@ -587,7 +565,7 @@ function close() {
 .pmm-btn:hover { border-color: var(--accent); color: var(--accent); }
 .pmm-btn.primary {
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
+    var(--noise-medium),
     linear-gradient(180deg, rgba(124,121,247,.95), rgba(91,87,210,.9));
   border-color: rgba(91,87,210,.5); color: #fff; font-weight: 600;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 3px 12px rgba(91,87,210,.3);
@@ -598,40 +576,16 @@ function close() {
 /* Config dialog */
 .pmm-dlg-overlay {
   position: absolute; inset: -1px; z-index: 5;  /* -1px: cover the parent card's border too */
-  background: rgba(15,17,27,.38);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
+  /* 遮罩层不使用 backdrop-filter（否则子卡片的后背模糊会失效） */
+  background: rgba(15,17,27,.46);
   display: flex; align-items: center; justify-content: center; padding: 1.5rem;
   border-radius: 18px; animation: fadeIn .16s ease;
 }
+/* 材质来自全局 .glass-dialog，此处只保留布局 */
 .pmm-dlg-card {
   width: min(430px, 100%); max-height: 100%; overflow-y: auto;
   border-radius: 16px; padding: 20px 22px; box-sizing: border-box;
-  background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
-    linear-gradient(180deg, rgba(255,255,255,.99), rgba(246,245,255,.975));
-  backdrop-filter: blur(60px) saturate(200%);
-  -webkit-backdrop-filter: blur(60px) saturate(200%);
-  border: 1px solid rgba(255,255,255,.65);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,1),
-    inset 0 -1px 0 rgba(20,18,60,.05),
-    0 1px 2px rgba(20,18,60,.06),
-    0 10px 26px rgba(20,18,60,.14),
-    0 28px 68px rgba(20,18,60,.24);
   animation: dlgIn .2s var(--spring) both;
-}
-[data-theme="dark"] .pmm-dlg-card {
-  background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
-    linear-gradient(180deg, rgba(50,54,82,.99), rgba(36,39,62,.975));
-  border-color: rgba(255,255,255,.14);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.1),
-    inset 0 -1px 0 rgba(0,0,0,.35),
-    0 1px 2px rgba(0,0,0,.25),
-    0 12px 28px rgba(0,0,0,.38),
-    0 32px 72px rgba(0,0,0,.5);
 }
 @keyframes dlgIn { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
 .pmm-dlg-title { font-size: 14.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }

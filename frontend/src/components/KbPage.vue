@@ -67,7 +67,7 @@ onMounted(loadKBFiles)
   display: flex; align-items: center; gap: 12px; padding: 11px 14px;
   border: 1px solid rgba(255,255,255,.95); border-radius: var(--radius-lg);
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
+    var(--noise-subtle),
     linear-gradient(180deg, rgba(255,255,255,.99), rgba(246,245,255,.975));
   backdrop-filter: blur(36px) saturate(180%);
   -webkit-backdrop-filter: blur(36px) saturate(180%);
@@ -92,7 +92,7 @@ onMounted(loadKBFiles)
 [data-theme="dark"] .kb-item {
   border-color: rgba(255,255,255,.14);
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
+    var(--noise-subtle),
     linear-gradient(180deg, rgba(50,54,82,.99), rgba(36,39,62,.975));
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.1),

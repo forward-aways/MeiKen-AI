@@ -42,7 +42,7 @@ onUnmounted(() => { document.removeEventListener('click', handleClickOutside) })
 
 <template>
   <div class="kb-wrapper" ref="kbMenuRef">
-    <button class="search-capsule" :class="{ active: showKbMenu }" @click="toggleKbMenu">
+    <button class="search-capsule glass-pill" :class="{ active: showKbMenu }" @click="toggleKbMenu">
       {{ t('rag') }}
       <svg class="kb-chevron" :class="{ open: showKbMenu }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
     </button>
@@ -74,38 +74,18 @@ onUnmounted(() => { document.removeEventListener('click', handleClickOutside) })
 
 <style scoped>
 .kb-wrapper { position: relative; }
+/* 材质来自全局 .glass-pill（凸起毛玻璃）；此处只保留布局 */
 .search-capsule {
   padding: 5px 14px;
   border-radius: 20px;
-  border: 1.5px solid var(--border-strong);
-  background: transparent;
-  color: var(--text-secondary);
   font-size: 12.5px;
   font-family: var(--font);
   cursor: pointer;
-  transition: all .2s var(--ease);
   white-space: nowrap;
   line-height: 1.4;
   display: flex;
   align-items: center;
   gap: 4px;
-}
-.search-capsule:hover {
-  background: var(--border);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0,0,0,.04);
-}
-.search-capsule:active {
-  transform: scale(.95);
-  transition-duration: .08s;
-}
-.search-capsule.active {
-  background: rgba(91, 87, 210, 0.12);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-[data-theme="dark"] .search-capsule.active {
-  background: rgba(126, 121, 247, 0.15);
 }
 .kb-chevron { transition: transform .2s var(--ease); }
 .kb-chevron.open { transform: rotate(180deg); }

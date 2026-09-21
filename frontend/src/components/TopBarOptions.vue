@@ -22,8 +22,8 @@ const modelLabel = computed(() => {
 const activeModel = computed(() => modelOverride.value || (currentAgent() || {}).model)
 
 function thinkModeKey(v) { return { fast: 'thinkFast', standard: 'thinkStandard', deep: 'thinkDeep' }[v] || 'thinkStandard' }
-function effortKey(v) { return { off: 'effOff', low: 'effLow', mid: 'effMid', high: 'effHigh' }[v] || 'effMid' }
-function effortDescKey(v) { return { off: 'effOffDesc', low: 'effLowDesc', mid: 'effMidDesc', high: 'effHighDesc' }[v] || 'effMidDesc' }
+function effortKey(v) { return { default: 'effDefault', low: 'effLow', mid: 'effMid', high: 'effHigh' }[v] || 'effDefault' }
+function effortDescKey(v) { return { default: 'effDefaultDesc', low: 'effLowDesc', mid: 'effMidDesc', high: 'effHighDesc' }[v] || 'effDefaultDesc' }
 function thinkDescKey(v) { return { fast: 'thinkFastDesc', standard: 'thinkStandardDesc', deep: 'thinkDeepDesc' }[v] || 'thinkStandardDesc' }
 
 function mDesc(m, g) {
@@ -108,7 +108,7 @@ onUnmounted(() => {
   <div class="to-wrap" ref="menuRef">
     <div class="to-cap-wrap">
       <button
-        class="to-btn"
+        class="to-btn glass-pill"
         :class="{ active: openWhich || modelOverride || thinkMode !== 'fast' || effortSel !== 'mid' }"
         @click="toggle"
         :title="t('model')"
@@ -163,22 +163,22 @@ onUnmounted(() => {
 
         <div class="to-divider"></div>
 
-        <div class="to-group-title">{{ t('thinkingMode') }}</div>
+        <div class="to-group-title">{{ t('thinkingIntensity') }}</div>
         <div class="to-list">
-          <button v-for="v in ['fast', 'standard', 'deep']" :key="v" class="to-item" :class="{ on: thinkMode === v && effortSel !== 'off' }" @click="setThinkMode(v)">
+          <button v-for="v in ['fast', 'standard', 'deep']" :key="v" class="to-item" :class="{ on: thinkMode === v }" @click="setThinkMode(v)">
             <span class="to-item-main">
               <span class="to-item-label">{{ t(thinkModeKey(v)) }}</span>
               <span class="to-item-sub">{{ t(thinkDescKey(v)) }}</span>
             </span>
-            <svg v-if="thinkMode === v && effortSel !== 'off'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <svg v-if="thinkMode === v" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           </button>
         </div>
 
         <div class="to-divider"></div>
 
-        <div class="to-group-title">{{ t('reasoningEffort') }}</div>
+        <div class="to-group-title">{{ t('reasoningIntensity') }}</div>
         <div class="to-list">
-          <button v-for="v in ['off', 'low', 'mid', 'high']" :key="v" class="to-item" :class="{ on: effortSel === v }" @click="setEffortSel(v)">
+          <button v-for="v in ['default', 'low', 'mid', 'high']" :key="v" class="to-item" :class="{ on: effortSel === v }" @click="setEffortSel(v)">
             <span class="to-item-main">
               <span class="to-item-label">{{ t(effortKey(v)) }}</span>
               <span class="to-item-sub">{{ t(effortDescKey(v)) }}</span>
@@ -195,30 +195,14 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* 材质来自全局 .glass-pill（凸起毛玻璃）；此处只保留布局 */
 .to-wrap { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
 .to-cap-wrap { position: relative; }
 .to-btn {
   display: flex; align-items: center; gap: 5px;
   padding: 5px 11px; border-radius: 999px;
-  background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
-    linear-gradient(180deg, rgba(255,255,255,.62), rgba(255,255,255,.4));
-  backdrop-filter: blur(22px) saturate(180%);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
-  border: 1px solid rgba(255,255,255,.7);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.75), 0 2px 8px rgba(20,18,60,.06);
-  color: var(--text-secondary); font-size: 12px; font-family: var(--font);
-  cursor: pointer; transition: all .2s var(--ease); white-space: nowrap; line-height: 1.4;
-}
-.to-btn:hover { transform: translateY(-1px); color: var(--text); border-color: rgba(91,87,210,.3); }
-.to-btn:active { transform: scale(.95); transition-duration: .08s; }
-.to-btn.active { color: var(--accent); border-color: rgba(91,87,210,.4); box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 2px 10px rgba(91,87,210,.14); }
-[data-theme="dark"] .to-btn {
-  background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
-    linear-gradient(180deg, rgba(44,48,72,.7), rgba(30,33,52,.5));
-  border-color: rgba(255,255,255,.12);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 2px 8px rgba(0,0,0,.22);
+  font-size: 12px; font-family: var(--font);
+  cursor: pointer; white-space: nowrap; line-height: 1.4;
 }
 .to-label { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
 .to-chev { color: var(--text-muted); transition: transform .2s var(--ease); flex-shrink: 0; }
@@ -233,7 +217,7 @@ onUnmounted(() => {
   border-radius: 14px;
   padding: 10px;
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
+    var(--noise-subtle),
     linear-gradient(180deg, rgba(255,255,255,.99), rgba(246,245,255,.975));
   backdrop-filter: blur(36px) saturate(180%);
   -webkit-backdrop-filter: blur(36px) saturate(180%);
@@ -248,7 +232,7 @@ onUnmounted(() => {
 }
 [data-theme="dark"] .to-menu {
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
+    var(--noise-subtle),
     linear-gradient(180deg, rgba(50,54,82,.99), rgba(36,39,62,.975));
   border-color: rgba(255,255,255,.14);
   box-shadow:
@@ -275,7 +259,7 @@ onUnmounted(() => {
   border-radius: 14px;
   padding: 10px;
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
+    var(--noise-subtle),
     linear-gradient(180deg, rgba(255,255,255,.99), rgba(246,245,255,.975));
   backdrop-filter: blur(36px) saturate(180%);
   -webkit-backdrop-filter: blur(36px) saturate(180%);
@@ -290,7 +274,7 @@ onUnmounted(() => {
 }
 [data-theme="dark"] .to-flyout {
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
+    var(--noise-subtle),
     linear-gradient(180deg, rgba(50,54,82,.99), rgba(36,39,62,.975));
   border-color: rgba(255,255,255,.14);
   box-shadow:

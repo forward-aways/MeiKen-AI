@@ -16,6 +16,11 @@
   --glass-edge: rgba(91,87,210,.14); --glass-edge-strong: rgba(91,87,210,.22); --glass-edge-weak: rgba(91,87,210,.1);
   --shadow-ambient: 0 1px 2px rgba(20,18,60,.05); --shadow-key: 0 6px 20px rgba(91,87,210,.1);
   --shadow-key-lg: 0 12px 40px rgba(91,87,210,.14);
+  /* 噪点材质令牌：唯一事实源，组件不得内联 feTurbulence（守卫见 __tests__/material.test.js） */
+  --noise-subtle: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>");
+  --noise-soft: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.045'/></svg>");
+  --noise-medium: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>");
+  --noise-strong: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.06'/></svg>");
 }
 
 [data-theme="dark"] {
@@ -90,6 +95,226 @@ body::before {
 [data-theme="dark"] .glass-pop { background: linear-gradient(180deg, rgba(30,33,52,.82), rgba(24,26,42,.66) 55%, rgba(28,30,48,.72)); }
 [data-theme="dark"] .glass-weak { background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.015)); }
 
+/* ===== Control surfaces: 可点击表面的唯一材质事实源 =====
+   风格：凸起毛玻璃（frosted glass）——不做凹槽、不做重拟物。
+   区分度来自强度梯度（模糊半径 / 投影强度 / 尺寸），而非方向对立：
+     .glass-input      主表面，blur 28，投影中等
+     .glass-pill       胶囊，blur 22，投影轻
+     .glass-icon-btn   圆形图标按钮，blur 18，投影轻
+     .glass-chip       轻量贴片（提示词），blur 20，投影最轻
+   不变量：
+     1. 同一语义的控件必须引用同一类，不得各自声明材质；
+     2. 遮罩层（overlay）禁止使用 backdrop-filter —— 它会创建 backdrop root，
+        使卡片的后背模糊失效（见 ADR-20260921-ModalBackdropFilter）；
+     3. 发送按钮为主操作（实心强调色），不参与本系统。 */
+
+/* 凸起毛玻璃：输入框 */
+.glass-input {
+  background:
+    var(--noise-subtle),
+    linear-gradient(180deg, rgba(255,255,255,.62), rgba(255,255,255,.4));
+  backdrop-filter: blur(28px) saturate(185%);
+  -webkit-backdrop-filter: blur(28px) saturate(185%);
+  border: 1px solid rgba(255,255,255,.68);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.8),
+    0 2px 6px rgba(20,18,60,.06),
+    0 10px 28px rgba(20,18,60,.08);
+  transition: border-color .25s var(--ease), box-shadow .25s var(--ease);
+}
+[data-theme="dark"] .glass-input {
+  background:
+    var(--noise-medium),
+    linear-gradient(180deg, rgba(48,52,78,.72), rgba(30,33,52,.55));
+  border-color: rgba(255,255,255,.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.1),
+    0 2px 6px rgba(0,0,0,.2),
+    0 10px 28px rgba(0,0,0,.28);
+}
+.glass-input:focus-within {
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.85),
+    0 0 0 3px rgba(91,87,210,.13),
+    0 10px 28px rgba(91,87,210,.12);
+}
+[data-theme="dark"] .glass-input:focus-within {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.12),
+    0 0 0 3px rgba(126,121,247,.16),
+    0 10px 28px rgba(0,0,0,.3);
+}
+.glass-input.drag-over {
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.85),
+    0 0 0 3px rgba(91,87,210,.2),
+    0 10px 28px rgba(91,87,210,.16);
+}
+
+/* 凸起毛玻璃：胶囊 */
+.glass-pill {
+  background:
+    var(--noise-medium),
+    linear-gradient(180deg, rgba(255,255,255,.68), rgba(255,255,255,.44));
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  border: 1px solid rgba(255,255,255,.7);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.85),
+    0 2px 8px rgba(20,18,60,.07);
+  color: var(--text-secondary);
+  transition: all .2s var(--ease);
+}
+.glass-pill:hover {
+  transform: translateY(-1px);
+  color: var(--text);
+  border-color: rgba(91,87,210,.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.9),
+    0 6px 16px rgba(91,87,210,.12);
+}
+.glass-pill:active { transform: scale(.96); transition-duration: .08s; }
+.glass-pill.active {
+  color: var(--accent);
+  border-color: rgba(91,87,210,.42);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.9),
+    0 4px 14px rgba(91,87,210,.18);
+}
+[data-theme="dark"] .glass-pill {
+  background:
+    var(--noise-medium),
+    linear-gradient(180deg, rgba(50,54,82,.72), rgba(32,35,54,.54));
+  border-color: rgba(255,255,255,.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.1),
+    0 2px 8px rgba(0,0,0,.24);
+}
+[data-theme="dark"] .glass-pill:hover { border-color: rgba(126,121,247,.4); }
+[data-theme="dark"] .glass-pill.active { color: var(--accent); border-color: rgba(126,121,247,.5); }
+
+/* 凸起毛玻璃：圆形图标按钮 */
+.glass-icon-btn {
+  background:
+    var(--noise-medium),
+    linear-gradient(180deg, rgba(255,255,255,.66), rgba(255,255,255,.42));
+  backdrop-filter: blur(18px) saturate(175%);
+  -webkit-backdrop-filter: blur(18px) saturate(175%);
+  border: 1px solid rgba(255,255,255,.68);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.85),
+    0 2px 7px rgba(20,18,60,.07);
+  color: var(--text-secondary);
+  transition: all .2s var(--ease);
+}
+.glass-icon-btn:hover {
+  transform: translateY(-1px);
+  color: var(--accent);
+  border-color: rgba(91,87,210,.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.9),
+    0 5px 14px rgba(91,87,210,.12);
+}
+.glass-icon-btn:active { transform: scale(.92); transition-duration: .08s; }
+[data-theme="dark"] .glass-icon-btn {
+  background:
+    var(--noise-medium),
+    linear-gradient(180deg, rgba(50,54,82,.72), rgba(32,35,54,.54));
+  border-color: rgba(255,255,255,.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.1),
+    0 2px 7px rgba(0,0,0,.24);
+}
+[data-theme="dark"] .glass-icon-btn:hover { border-color: rgba(126,121,247,.4); }
+
+/* 凸起毛玻璃·轻：提示词胶囊（与输入框同族但更轻，保持区分度） */
+.glass-chip {
+  background:
+    var(--noise-soft),
+    linear-gradient(180deg, rgba(255,255,255,.5), rgba(255,255,255,.3));
+  backdrop-filter: blur(20px) saturate(170%);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  border: 1px solid rgba(255,255,255,.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.7),
+    0 2px 8px rgba(20,18,60,.05);
+  color: var(--text-secondary);
+  transition: all .2s var(--spring);
+}
+.glass-chip:hover {
+  transform: translateY(-2px);
+  color: var(--accent);
+  border-color: rgba(91,87,210,.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.8),
+    0 6px 16px rgba(91,87,210,.12);
+}
+.glass-chip:active { transform: scale(.96); transition-duration: .08s; }
+[data-theme="dark"] .glass-chip {
+  background:
+    var(--noise-medium),
+    linear-gradient(180deg, rgba(44,48,72,.6), rgba(30,33,52,.42));
+  border-color: rgba(255,255,255,.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.08),
+    0 2px 8px rgba(0,0,0,.2);
+}
+[data-theme="dark"] .glass-chip:hover { border-color: rgba(126,121,247,.4); }
+
+/* 弹窗卡片：近实心毛玻璃（可读性优先；小菜单请用 .glass-pop） */
+.glass-dialog {
+  background:
+    var(--noise-subtle),
+    linear-gradient(180deg, rgba(255,255,255,.99), rgba(246,245,255,.975));
+  backdrop-filter: blur(60px) saturate(200%);
+  -webkit-backdrop-filter: blur(60px) saturate(200%);
+  border: 1px solid rgba(255,255,255,.7);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,1),
+    inset 0 -1px 0 rgba(20,18,60,.05),
+    0 10px 26px rgba(20,18,60,.14),
+    0 28px 68px rgba(20,18,60,.22);
+}
+[data-theme="dark"] .glass-dialog {
+  background:
+    var(--noise-subtle),
+    linear-gradient(180deg, rgba(50,54,82,.99), rgba(36,39,62,.975));
+  border-color: rgba(255,255,255,.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.1),
+    inset 0 -1px 0 rgba(0,0,0,.35),
+    0 10px 26px rgba(0,0,0,.35),
+    0 28px 68px rgba(0,0,0,.45);
+}
+
+/* 近实心片：弹窗卡片与实心毛玻璃（可读性优先，小菜单用 .glass-pop） */
+.glass-dialog {
+  background:
+    var(--noise-subtle),
+    linear-gradient(180deg, rgba(255,255,255,.99), rgba(246,245,255,.975));
+  backdrop-filter: blur(60px) saturate(200%);
+  -webkit-backdrop-filter: blur(60px) saturate(200%);
+  border: 1px solid rgba(255,255,255,.7);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,1),
+    inset 0 -1px 0 rgba(20,18,60,.05),
+    0 10px 26px rgba(20,18,60,.14),
+    0 28px 68px rgba(20,18,60,.22);
+}
+[data-theme="dark"] .glass-dialog {
+  background:
+    var(--noise-subtle),
+    linear-gradient(180deg, rgba(50,54,82,.99), rgba(36,39,62,.975));
+  border-color: rgba(255,255,255,.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.1),
+    inset 0 -1px 0 rgba(0,0,0,.35),
+    0 10px 26px rgba(0,0,0,.4),
+    0 28px 68px rgba(0,0,0,.5);
+}
+
 /* ===== Activity language: running rows share one look across the app ===== */
 /* Glass slab for an active row */
 .activity-glass {
@@ -145,7 +370,11 @@ body::before {
 [data-theme="dark"] .sidebar { background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02) 55%, rgba(255,255,255,.05)); }
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: transparent; padding-top: 52px }
 .sidebar.collapsed { width: 56px; min-width: 56px; border-right-width: 1px; pointer-events: auto }
-.main.view-anim > * { animation: viewIn .35s var(--spring) both }
+/* 入场动画使用 backwards 而非 both：动画结束后不得残留 transform
+   （非 none 的 transform 会成为 position:fixed 后代的包含块，导致浮层错位，
+   见 ADR-20260921-ModalFixedOffset）。元素自然状态已是 opacity:1/transform:none，
+   无需 forwards 保留终态。 */
+.main.view-anim > * { animation: viewIn .35s var(--spring) backwards }
 
 /* ===== Mobile (<=768px) ===== */
 @media (max-width: 768px) {

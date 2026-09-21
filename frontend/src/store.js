@@ -2,6 +2,7 @@ import { reactive, ref, computed } from 'vue'
 import { TXT } from './i18n.js'
 import { get, post, put, del } from './api.js'
 import { API_BASE } from './api.js'
+import { effectiveEffortFor, normalizeEffort, normalizeThinkMode } from './thinking.js'
 
 export const authed = ref(false)
 export const user = ref({ email: '', nickname: '' })
@@ -19,17 +20,15 @@ export function setView(v) { view.value = v }
 
 // Model / thinking capsules (persisted).
 export const modelOverride = ref(localStorage.getItem('mk-model') || null)  // null(follow agent) | model name
-export const thinkMode = ref(localStorage.getItem('mk-thinkmode') || 'fast') // fast | standard | deep
-export const effortSel = ref(localStorage.getItem('mk-effort') || 'mid')     // off | low | mid | high
+// 思考强度（左胶囊）：fast=关闭思考 | standard=均衡 | deep=深入
+export const thinkMode = ref(normalizeThinkMode(localStorage.getItem('mk-thinkmode')))
+// 推理强度（右胶囊）：default=跟随思考强度 | low | mid | high
+export const effortSel = ref(normalizeEffort(localStorage.getItem('mk-effort')))
 export const providers = ref([])  // [{id,name,base_url,key_configured,key_masked,deepseek_compat,models,is_builtin,enabled}]
 
-const THINK_EFFORT = { fast: 'low', standard: 'high', deep: 'max' }
-const EFFORT_OVERRIDE = { low: 'low', high: 'max' }
-
+/** 计算本次请求的思考配置（映射规则见 thinking.js，唯一事实源）。 */
 export function effectiveEffort() {
-  if (effortSel.value === 'off') return { thinking: false, effort: null }
-  if (effortSel.value === 'mid') return { thinking: true, effort: THINK_EFFORT[thinkMode.value] || 'high' }
-  return { thinking: true, effort: EFFORT_OVERRIDE[effortSel.value] || 'high' }
+  return effectiveEffortFor(thinkMode.value, effortSel.value)
 }
 
 export async function loadProviders() {
@@ -72,14 +71,18 @@ export const locale = ref(localStorage.getItem('mk-locale') || 'zh')
 export const sidebarCollapsed = ref(false)
 export const showCollapsedWidget = ref(false)
 
-// Context usage meter: cumulative tokens of the active conversation.
+// 上下文用量：取"最近一次 LLM 调用"的 total_tokens（当前上下文占用），
+// 而非历史累加——每轮请求都会重发全部历史，累加会重复计数（见 ADR-20260921）。
 export const CONTEXT_WINDOW = 1_000_000  // DeepSeek V4 (flash & pro) 1M-token context
 export const contextTokens = ref(0)
 export function setContextTokens(n) {
-  contextTokens.value = n || 0
+  const v = Number(n) || 0
+  // I6：未上报（0）不得覆盖已有值，避免用量回退为 0
+  if (v <= 0) return
+  contextTokens.value = v
 }
-export function addContextTokens(n) {
-  contextTokens.value += n || 0
+export function resetContextTokens() {
+  contextTokens.value = 0
 }
 
 export const systemPrompt = ref(localStorage.getItem('mk-sysprompt') || '')

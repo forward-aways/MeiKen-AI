@@ -1,17 +1,23 @@
 <script setup>
 import { computed } from 'vue'
-import { msgs, t } from '../store.js'
+import { msgs, busy, t } from '../store.js'
 
-const emit = defineEmits(['approve'])
-
+// 可见性由"运行生命周期"决定，而不是"最后一条消息对象"的瞬时标志：
+// - busy：整轮 run 期间恒为真 → 面板在运行期间稳定存在，不再随消息抖动；
+// - streaming / pendingApproval：覆盖审批恢复运行与审批等待两个阶段；
+// - hasActivity：该消息已产生时间线/计划，运行结束后继续保留供查看。
+// 面板始终挂载，仅通过宽度过渡展开/收起，避免增删 DOM 引起的布局回流。
 const live = computed(() => {
   const assistants = msgs.value.filter((m) => m.role === 'assistant')
   const m = assistants[assistants.length - 1]
   if (!m) return null
-  const active = m.streaming || m.pendingApproval ||
-    (m.todos && m.todos.length) || (m.toolCalls && m.toolCalls.length) ||
-    (m.subagents && m.subagents.length) || (m.approvals && m.approvals.length)
-  return active ? m : null
+  const hasActivity = Boolean(
+    (m.todos && m.todos.length) ||
+    (m.toolCalls && m.toolCalls.length) ||
+    (m.subagents && m.subagents.length) ||
+    (m.approvals && m.approvals.length)
+  )
+  return (busy.value || m.streaming || m.pendingApproval || hasActivity) ? m : null
 })
 
 const phaseLabel = computed(() => {
@@ -24,73 +30,72 @@ const phaseLabel = computed(() => {
   return ''
 })
 
-const pendingApprovals = computed(() => (live.value?.approvals || []).filter((a) => a.status === 'pending'))
 const doneCount = computed(() => (live.value?.todos || []).filter((x) => x.status === 'done').length)
 </script>
 
 <template>
-  <aside v-if="live" class="activity-panel glass">
-    <div class="ap-title">
-      <span class="ap-dot"></span>
-      {{ t('activityTitle') }}
-    </div>
-
-    <div v-if="live.subagents && live.subagents.length" class="ap-section">
-      <div class="ap-label">{{ t('expertCoordinating') }}</div>
-      <div class="ap-subagent" v-for="(s, i) in live.subagents" :key="i">
-        <span class="ap-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="10" r="1.6"/><path d="M7 16c.8-1.4 2.4-2 4-2s3.2.6 4 2"/></svg></span>
-        <span class="ap-name">{{ s.name }}</span>
-        <span class="ap-status" :class="s.status">{{ s.status === 'running' ? t('running') : t('done') }}</span>
+  <aside class="activity-panel glass" :class="{ collapsed: !live }" :aria-hidden="!live">
+    <div v-if="live" class="ap-inner">
+      <div class="ap-title">
+        <span class="ap-dot"></span>
+        {{ t('activityTitle') }}
       </div>
-    </div>
 
-    <div v-if="live.todos && live.todos.length" class="ap-section">
-      <div class="ap-label">{{ t('todoList') }} ({{ doneCount }}/{{ live.todos.length }})</div>
-      <div class="ap-todo" v-for="(td, i) in live.todos" :key="i" :class="{ done: td.status === 'done' }">
-        <svg v-if="td.status === 'done'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="11" height="11" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11" stroke-linecap="round"><circle cx="12" cy="12" r="9"/></svg>
-        <span>{{ td.title }}</span>
-      </div>
-    </div>
-
-    <div v-if="live.toolCalls && live.toolCalls.length" class="ap-section">
-      <div class="ap-label">{{ t('toolCalls') }}</div>
-      <div class="ap-tool" v-for="(tc, i) in live.toolCalls" :key="i" :class="{ done: tc.status === 'done' }">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-        <span class="ap-tool-name">{{ tc.tool }}</span>
-        <span class="ap-status" :class="tc.status">{{ tc.status === 'running' ? t('running') : t('done') }}</span>
-      </div>
-    </div>
-
-    <div v-if="pendingApprovals.length" class="ap-section">
-      <div class="ap-label">{{ t('approvalTitle') }}</div>
-      <div class="ap-approval" v-for="a in pendingApprovals" :key="a.action_id">
-        <div class="ap-tool-name">{{ a.tool }}</div>
-        <pre class="ap-args">{{ JSON.stringify(a.args, null, 1).slice(0, 240) }}</pre>
-        <div class="ap-actions">
-          <button class="ap-btn ok" @click="emit('approve', live, a, 'approve', null, '')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            {{ t('approve') }}
-          </button>
-          <button class="ap-btn no" @click="emit('approve', live, a, 'reject', null, '')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            {{ t('reject') }}
-          </button>
+      <div v-if="live.subagents && live.subagents.length" class="ap-section">
+        <div class="ap-label">{{ t('expertCoordinating') }}</div>
+        <div class="ap-subagent" v-for="(s, i) in live.subagents" :key="i">
+          <span class="ap-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="10" r="1.6"/><path d="M7 16c.8-1.4 2.4-2 4-2s3.2.6 4 2"/></svg></span>
+          <span class="ap-name">{{ s.name }}</span>
+          <span class="ap-status" :class="s.status">{{ s.status === 'running' ? t('running') : t('done') }}</span>
         </div>
       </div>
-    </div>
 
-    <div v-if="live.streaming && phaseLabel" class="ap-phase">{{ phaseLabel }}</div>
+      <div v-if="live.todos && live.todos.length" class="ap-section">
+        <div class="ap-label">{{ t('todoList') }} ({{ doneCount }}/{{ live.todos.length }})</div>
+        <div class="ap-todo" v-for="(td, i) in live.todos" :key="i" :class="{ done: td.status === 'done' }">
+          <svg v-if="td.status === 'done'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="11" height="11" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11" stroke-linecap="round"><circle cx="12" cy="12" r="9"/></svg>
+          <span>{{ td.title }}</span>
+        </div>
+      </div>
+
+      <div v-if="live.toolCalls && live.toolCalls.length" class="ap-section">
+        <div class="ap-label">{{ t('toolCalls') }}</div>
+        <div class="ap-tool" v-for="(tc, i) in live.toolCalls" :key="i" :class="{ done: tc.status === 'done' }">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          <span class="ap-tool-name">{{ tc.tool }}</span>
+          <span class="ap-status" :class="tc.status">{{ tc.status === 'running' ? t('running') : t('done') }}</span>
+        </div>
+      </div>
+
+      <div v-if="live.pendingApproval" class="ap-section">
+        <div class="ap-label">{{ t('approvalTitle') }}</div>
+        <div class="ap-hint">{{ t('approvalInTimeline') }}</div>
+      </div>
+
+      <div v-if="phaseLabel" class="ap-phase">{{ phaseLabel }}</div>
+    </div>
   </aside>
 </template>
 
 <style scoped>
-.activity-panel { width: 260px; flex-shrink: 0; padding: 1rem 1rem 1.5rem; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; animation: slideInRight .35s var(--spring) both; border-left: none; border-radius: 0; box-shadow: none; }
+/* 顶部留出固定顶栏高度，避免内容被顶栏遮挡（与 .sidebar / .main 一致） */
+.activity-panel {
+  width: 260px; flex-shrink: 0; padding-top: 52px; overflow: hidden;
+  display: flex; flex-direction: column;
+  border-left: none; border-radius: 0; box-shadow: none;
+  z-index: 10;
+  transition: width .3s var(--spring), opacity .22s var(--ease);
+}
+.activity-panel.collapsed { width: 0; opacity: 0; pointer-events: none; }
+.ap-inner {
+  width: 260px; flex: 1; min-height: 0; overflow-y: auto;
+  padding: 0 1rem 1.5rem; display: flex; flex-direction: column; gap: 14px;
+}
 .ap-section { animation: fadeSlide .3s var(--spring) both; }
 .ap-section:nth-of-type(2) { animation-delay: 50ms; }
 .ap-section:nth-of-type(3) { animation-delay: 100ms; }
 .ap-section:nth-of-type(4) { animation-delay: 150ms; }
-.ap-section:nth-of-type(5) { animation-delay: 200ms; }
 .ap-title { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .4px; }
 .ap-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: apPulse 1.4s ease-out infinite; }
 @keyframes apPulse { 0% { box-shadow: 0 0 0 0 rgba(91,87,210,.45); } 70% { box-shadow: 0 0 0 6px rgba(91,87,210,0); } 100% { box-shadow: 0 0 0 0 rgba(91,87,210,0); } }
@@ -107,14 +112,7 @@ const doneCount = computed(() => (live.value?.todos || []).filter((x) => x.statu
 .ap-todo svg { flex-shrink: 0; margin-top: 2px; color: var(--accent); }
 .ap-todo.done { color: var(--text-muted); text-decoration: line-through; }
 .ap-todo.done svg { color: #10b981; }
-.ap-approval { border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 8px; display: flex; flex-direction: column; gap: 6px; background: var(--surface); }
-.ap-args { font-size: 11px; color: var(--text-muted); margin: 0; max-height: 90px; overflow: auto; white-space: pre-wrap; word-break: break-all; font-family: var(--mono); }
-.ap-actions { display: flex; gap: 6px; }
-.ap-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; padding: 5px 0; border-radius: 7px; border: none; font-size: 12px; font-family: var(--font); cursor: pointer; transition: all .15s; }
-.ap-btn.ok { background: rgba(16,185,129,.14); color: #10b981; }
-.ap-btn.ok:hover { background: rgba(16,185,129,.24); }
-.ap-btn.no { background: rgba(239,68,68,.12); color: #ef4444; }
-.ap-btn.no:hover { background: rgba(239,68,68,.22); }
+.ap-hint { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
 .ap-phase { font-size: 12.5px; color: var(--accent); font-weight: 600; }
 
 @media (max-width: 1024px) {

@@ -17,15 +17,12 @@ const modelLabel = computed(() => {
   if (!modelOverride.value) return t('followAgent')
   return modelOverride.value
 })
-const thinkLabel = computed(() => {
-  if (effortSel.value === 'off') return t('thinkOff') + ' · ' + t(thinkModeKey(thinkMode.value))
-  return t(thinkModeKey(thinkMode.value))
-})
+const thinkLabel = computed(() => t(thinkModeKey(thinkMode.value)))
 const effortLabel = computed(() => t(effortKey(effortSel.value)))
 
 function thinkModeKey(v) { return { fast: 'thinkFast', standard: 'thinkStandard', deep: 'thinkDeep' }[v] || 'thinkStandard' }
-function effortKey(v) { return { off: 'effOff', low: 'effLow', mid: 'effMid', high: 'effHigh' }[v] || 'effMid' }
-function effortDescKey(v) { return { off: 'effOffDesc', low: 'effLowDesc', mid: 'effMidDesc', high: 'effHighDesc' }[v] || 'effMidDesc' }
+function effortKey(v) { return { default: 'effDefault', low: 'effLow', mid: 'effMid', high: 'effHigh' }[v] || 'effDefault' }
+function effortDescKey(v) { return { default: 'effDefaultDesc', low: 'effLowDesc', mid: 'effMidDesc', high: 'effHighDesc' }[v] || 'effDefaultDesc' }
 function thinkDescKey(v) { return { fast: 'thinkFastDesc', standard: 'thinkStandardDesc', deep: 'thinkDeepDesc' }[v] || 'thinkStandardDesc' }
 
 const activeModel = computed(() => modelOverride.value || (currentAgent() || {}).model)
@@ -112,8 +109,7 @@ onUnmounted(() => {
   <div class="ao-wrap" ref="menuRef">
     <!-- Model capsule -->
     <div class="ao-cap-wrap">
-      <button class="ao-btn" :class="{ active: openWhich === 'model' || modelOverride }" @click="toggle('model')" :title="t('model')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+      <button class="ao-btn glass-pill" :class="{ active: openWhich === 'model' || modelOverride }" @click="toggle('model')" :title="t('model')">
         <span class="ao-label">{{ modelLabel }}</span>
         <svg class="ao-chev" :class="{ open: openWhich === 'model' }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
@@ -164,36 +160,34 @@ onUnmounted(() => {
 
     <!-- Thinking mode capsule -->
     <div class="ao-cap-wrap">
-      <button class="ao-btn" :class="{ active: openWhich === 'think' || thinkMode !== 'fast' }" @click="toggle('think')" :title="t('thinkingMode')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 2.4 1.2 4.5 3 5.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3c1.8-1.2 3-3.3 3-5.7a7 7 0 0 0-7-7z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>
+      <button class="ao-btn glass-pill" :class="{ active: openWhich === 'think' || thinkMode !== 'standard' }" @click="toggle('think')" :title="t('thinkingIntensity')">
         <span class="ao-label">{{ thinkLabel }}</span>
         <svg class="ao-chev" :class="{ open: openWhich === 'think' }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div v-if="openWhich === 'think'" class="ao-menu">
-        <div class="ao-group-title">{{ t('thinkingMode') }}</div>
+        <div class="ao-group-title">{{ t('thinkingIntensity') }}</div>
         <div class="ao-list">
-          <button v-for="v in ['fast', 'standard', 'deep']" :key="v" class="ao-item" :class="{ on: thinkMode === v && effortSel !== 'off' }" @click="setThinkMode(v); openWhich = null">
+          <button v-for="v in ['fast', 'standard', 'deep']" :key="v" class="ao-item" :class="{ on: thinkMode === v }" @click="setThinkMode(v); openWhich = null">
             <span class="ao-item-main">
               <span class="ao-item-label">{{ t(thinkModeKey(v)) }}</span>
               <span class="ao-item-sub">{{ t(thinkDescKey(v)) }}</span>
             </span>
-            <svg v-if="thinkMode === v && effortSel !== 'off'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <svg v-if="thinkMode === v" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Reasoning effort capsule -->
+    <!-- Reasoning intensity capsule -->
     <div class="ao-cap-wrap">
-      <button class="ao-btn" :class="{ active: openWhich === 'effort' || effortSel !== 'mid' }" @click="toggle('effort')" :title="t('reasoningEffort')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-        <span class="ao-label">{{ t(effortKey(effortSel)) }}</span>
+      <button class="ao-btn glass-pill" :class="{ active: openWhich === 'effort' || effortSel !== 'default' }" @click="toggle('effort')" :title="t('reasoningIntensity')">
+        <span class="ao-label">{{ effortLabel }}</span>
         <svg class="ao-chev" :class="{ open: openWhich === 'effort' }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div v-if="openWhich === 'effort'" class="ao-menu">
-        <div class="ao-group-title">{{ t('reasoningEffort') }}</div>
+        <div class="ao-group-title">{{ t('reasoningIntensity') }}</div>
         <div class="ao-list">
-          <button v-for="v in ['off', 'low', 'mid', 'high']" :key="v" class="ao-item" :class="{ on: effortSel === v }" @click="setEffortSel(v); openWhich = null">
+          <button v-for="v in ['default', 'low', 'mid', 'high']" :key="v" class="ao-item" :class="{ on: effortSel === v }" @click="setEffortSel(v); openWhich = null">
             <span class="ao-item-main">
               <span class="ao-item-label">{{ t(effortKey(v)) }}</span>
               <span class="ao-item-sub">{{ t(effortDescKey(v)) }}</span>
@@ -209,30 +203,14 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* 材质来自全局 .glass-pill（凸起层）；此处只保留布局 */
 .ao-wrap { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .ao-cap-wrap { position: relative; }
 .ao-btn {
   display: flex; align-items: center; gap: 5px;
   padding: 5px 11px; border-radius: 999px;
-  background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
-    linear-gradient(180deg, rgba(255,255,255,.62), rgba(255,255,255,.4));
-  backdrop-filter: blur(22px) saturate(180%);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
-  border: 1px solid rgba(255,255,255,.7);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.75), 0 2px 8px rgba(20,18,60,.06);
-  color: var(--text-secondary); font-size: 12px; font-family: var(--font);
-  cursor: pointer; transition: all .2s var(--ease); white-space: nowrap; line-height: 1.4;
-}
-.ao-btn:hover { transform: translateY(-1px); color: var(--text); border-color: rgba(91,87,210,.3); }
-.ao-btn:active { transform: scale(.95); transition-duration: .08s; }
-.ao-btn.active { color: var(--accent); border-color: rgba(91,87,210,.4); box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 2px 10px rgba(91,87,210,.14); }
-[data-theme="dark"] .ao-btn {
-  background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
-    linear-gradient(180deg, rgba(44,48,72,.7), rgba(30,33,52,.5));
-  border-color: rgba(255,255,255,.12);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 2px 8px rgba(0,0,0,.22);
+  font-size: 12px; font-family: var(--font);
+  cursor: pointer; white-space: nowrap; line-height: 1.4;
 }
 .ao-label { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
 .ao-chev { color: var(--text-muted); transition: transform .2s var(--ease); flex-shrink: 0; }
@@ -245,7 +223,7 @@ onUnmounted(() => {
   border-radius: 14px;
   padding: 10px;
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
+    var(--noise-subtle),
     linear-gradient(180deg, rgba(255,255,255,.99), rgba(246,245,255,.975));
   backdrop-filter: blur(36px) saturate(180%);
   -webkit-backdrop-filter: blur(36px) saturate(180%);
@@ -266,7 +244,7 @@ onUnmounted(() => {
   border-radius: 14px;
   padding: 10px;
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
+    var(--noise-subtle),
     linear-gradient(180deg, rgba(255,255,255,.99), rgba(246,245,255,.975));
   backdrop-filter: blur(36px) saturate(180%);
   -webkit-backdrop-filter: blur(36px) saturate(180%);
@@ -281,7 +259,7 @@ onUnmounted(() => {
 }
 [data-theme="dark"] .ao-flyout {
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
+    var(--noise-subtle),
     linear-gradient(180deg, rgba(50,54,82,.99), rgba(36,39,62,.975));
   border-color: rgba(255,255,255,.14);
   box-shadow:
@@ -300,7 +278,7 @@ onUnmounted(() => {
 @keyframes aoFlyIn { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: scale(1); } }
 [data-theme="dark"] .ao-menu {
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.04'/></svg>"),
+    var(--noise-subtle),
     linear-gradient(180deg, rgba(50,54,82,.99), rgba(36,39,62,.975));
   border-color: rgba(255,255,255,.14);
   box-shadow:

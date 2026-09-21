@@ -219,7 +219,7 @@ function truncate(s, max) {
 .msg.user .bubble {
   max-width: 78%; color: var(--user-text); padding: .62rem 1rem;
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.06'/></svg>"),
+    var(--noise-strong),
     linear-gradient(180deg, rgba(99,95,222,.97), rgba(75,71,192,.93));
   border: 1px solid rgba(255,255,255,.26);
   border-radius: 18px 18px 6px 18px;

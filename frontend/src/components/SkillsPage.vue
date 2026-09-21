@@ -66,8 +66,12 @@
       </div>
     </div>
 
+    <!-- Teleport 到 body：模态浮层不得渲染在页面容器内。
+         页面容器带有入场动画残留的 transform，会成为 position:fixed 的包含块，
+         导致弹窗错位、遮罩不覆盖视口（见 ADR-20260921-ModalFixedOffset）。 -->
+    <Teleport to="body">
     <div v-if="formOpen" class="sp-modal" @click.self="closeForm">
-      <div class="sp-modal-card glass-pop">
+      <div class="sp-modal-card glass-dialog">
         <h3 class="sp-modal-title">{{ editing ? t('skillEdit') : t('skillCreate') }}</h3>
         <label class="sp-field">
           <span class="sp-label">{{ t('skillName') }}</span>
@@ -88,6 +92,7 @@
         </div>
       </div>
     </div>
+    </Teleport>
   </div>
 </template>
 
@@ -265,7 +270,7 @@ onMounted(load)
   position: relative; cursor: pointer; padding: 0;
   border: 1px solid var(--glass-edge-weak);
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
+    var(--noise-medium),
     linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.3));
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -275,13 +280,13 @@ onMounted(load)
 .skill-switch.on {
   border-color: rgba(91,87,210,.5);
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
+    var(--noise-medium),
     linear-gradient(180deg, rgba(124,121,247,.85), rgba(91,87,210,.7));
   box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 2px 10px rgba(91,87,210,.28);
 }
 [data-theme="dark"] .skill-switch {
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
+    var(--noise-medium),
     linear-gradient(180deg, rgba(44,48,72,.75), rgba(30,33,52,.55));
   border-color: rgba(255,255,255,.14);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 2px 8px rgba(0,0,0,.25);
@@ -289,7 +294,7 @@ onMounted(load)
 [data-theme="dark"] .skill-switch.on {
   border-color: rgba(126,121,247,.55);
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
+    var(--noise-medium),
     linear-gradient(180deg, rgba(126,121,247,.9), rgba(91,87,210,.72));
   box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 2px 12px rgba(126,121,247,.35);
 }
@@ -303,8 +308,8 @@ onMounted(load)
 .skill-switch.on .skill-knob { transform: translateX(17px); }
 .sp-modal {
   position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
-  background: rgba(10, 10, 30, .35); backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  /* 遮罩层不使用 backdrop-filter：它会创建 backdrop root，令卡片的后背模糊失效 */
+  background: rgba(15, 17, 27, .46);
   animation: spFade .2s var(--ease);
 }
 @keyframes spFade { from { opacity: 0; } to { opacity: 1; } }

@@ -366,9 +366,12 @@ onMounted(loadAgents)
         />
       </svg>
 
+      <!-- 图例与节点同源：颜色一律取自 expertForAgent(...)，禁止硬编码 -->
       <div class="graph-legend glass-weak">
         <span><i class="lg-dot main"></i>{{ t('mainAgent') }}</span>
-        <span><i class="lg-dot"></i>{{ t('otherExperts') }}</span>
+        <span v-for="n in ring" :key="'lg' + n.agent.id">
+          <i class="lg-dot" :style="{ background: expertForAgent(n.agent).color }"></i>{{ expertForAgent(n.agent).displayName }}
+        </span>
         <span v-if="outer.length"><i class="lg-dot custom"></i>{{ t('customExperts') }}</span>
       </div>
 
@@ -459,12 +462,16 @@ onMounted(loadAgents)
       </div>
     </div>
 
+    <!-- Teleport 到 body：模态浮层不得渲染在页面容器内（容器残留的 transform
+         会成为 position:fixed 的包含块，导致错位与遮罩不覆盖视口） -->
+    <Teleport to="body">
     <div v-if="showForm" class="form-overlay">
-      <div class="form-shell glass-pop">
+      <div class="form-shell glass-dialog">
         <div class="form-title">{{ formAgent ? t('edit') : t('createAgent') }}</div>
         <AgentForm :agent="formAgent" @saved="onSaved" @cancel="showForm = false" />
       </div>
     </div>
+    </Teleport>
 
     <div class="mobile-list">
       <div v-for="a in agents" :key="'m' + a.id" class="agent-card">
@@ -536,7 +543,7 @@ onMounted(loadAgents)
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
+    var(--noise-medium),
     linear-gradient(180deg, rgba(255,255,255,.6), rgba(255,255,255,.3));
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -547,7 +554,7 @@ onMounted(loadAgents)
 }
 [data-theme="dark"] .g-node-icon {
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
+    var(--noise-medium),
     linear-gradient(180deg, rgba(44,48,72,.65), rgba(30,33,52,.45));
   border-color: rgba(255,255,255,.14);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 6px 18px rgba(0,0,0,.25);
@@ -570,7 +577,7 @@ onMounted(loadAgents)
 .g-center { --ns: 88px; }
 .g-center .g-node-icon {
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.05'/></svg>"),
+    var(--noise-medium),
     linear-gradient(180deg, rgba(124,121,247,.5), rgba(91,87,210,.28));
   border-color: rgba(91,87,210,.4);
   color: #fff;
@@ -620,7 +627,9 @@ onMounted(loadAgents)
 }
 .graph-legend {
   position: absolute; left: 12px; bottom: 12px; z-index: 5;
-  display: flex; align-items: center; gap: 14px;
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 6px 14px; row-gap: 4px;
+  max-width: calc(100% - 24px);
   padding: 6px 12px; border-radius: 999px;
   font-size: 11.5px; font-weight: 600; color: var(--text-secondary);
   pointer-events: none;
@@ -665,7 +674,7 @@ onMounted(loadAgents)
 .detail-readonly { font-size: 12px; color: var(--text-muted); }
 
 /* ===== Form overlay ===== */
-.form-overlay { position: fixed; inset: 0; z-index: 90; background: rgba(15,17,27,.35); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; padding: 1rem; animation: fadeIn .18s ease; }
+.form-overlay { position: fixed; inset: 0; z-index: 90; background: rgba(15,17,27,.46); display: flex; align-items: center; justify-content: center; padding: 1rem; animation: fadeIn .18s ease; }
 .form-shell { width: 100%; max-width: 640px; max-height: 86vh; overflow-y: auto; border-radius: var(--radius-lg); padding: 1.4rem; animation: popIn .22s var(--spring) both; }
 .form-title { font-size: 16px; font-weight: 700; margin-bottom: 1rem; }
 

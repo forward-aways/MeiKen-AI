@@ -1,9 +1,10 @@
 <script setup>
 import { ref, reactive, computed, nextTick, onMounted, watch } from 'vue'
-import { authed, user, convs, activeId, msgs, input, busy, theme, locale, sidebarCollapsed, showCollapsedWidget, systemPrompt, pinnedIds, agents, currentAgentId, currentAgent, setCurrentAgent, mode, view, setView, modelOverride, effectiveEffort, t, applyTheme, setLocale, saveSystemPrompt, togglePin, loadAll, loadAgents, checkAuth, logout, uploadTempFile, deleteTempFile, setContextTokens, addContextTokens } from './store.js'
+import { authed, user, convs, activeId, msgs, input, busy, theme, locale, sidebarCollapsed, showCollapsedWidget, systemPrompt, pinnedIds, agents, currentAgentId, currentAgent, setCurrentAgent, mode, view, setView, modelOverride, effectiveEffort, t, applyTheme, setLocale, saveSystemPrompt, togglePin, loadAll, loadAgents, checkAuth, logout, uploadTempFile, deleteTempFile, setContextTokens, resetContextTokens } from './store.js'
 import { get, post, del as apiDel, fetchRaw } from './api.js'
 import { stripMd } from './md.js'
 import { log } from './logger.js'
+import { applyEvent } from './sse.js'
 import LoginPage from './components/LoginPage.vue'
 import Sidebar from './components/Sidebar.vue'
 import TopBar from './components/TopBar.vue'
@@ -26,7 +27,6 @@ const convKey = ref(0)
 let abortCtrl = null
 const editingIdx = ref(null)
 const editText = ref('')
-const searchingQuery = ref('')
 const tempFileData = ref(null)
 const isMobile = ref(window.innerWidth <= 768)
 const disclaimerAgreed = ref(localStorage.getItem('mk-disclaimer') === '1')
@@ -57,82 +57,13 @@ async function onTempFile(file) {
   }
 }
 
-function splitInterim(ast) {
-  // Text emitted before a tool call is process talk — move it out of the
-  // answer bubble so only the final answer stays in the main text.
-  if (ast.content && ast.content.trim()) {
-    ast.interim = ast.interim || []
-    ast.interim.push(ast.content.trim())
-    ast.content = ''
-  }
-}
-
-function applyEvent(ast, ev) {
-  if (ev.token) { ast.content += ev.token; ast.phase = 'generating'; return true }
-  if (ev.reasoning) { ast.reasoning = (ast.reasoning || '') + ev.reasoning; ast.phase = 'thinking'; return true }
-  if (ev.thinking_done) { ast.thinkingTime = ev.thinking_done; return true }
-  if (ev.tokens) { ast.tokens = ev.tokens; return true }
-  if (ev.status === 'searching') { searchingQuery.value = ev.query || ''; return true }
-  if (ev.status === 'searched') { searchingQuery.value = ''; if (ev.results) { ast.searchResults = ev.results; ast.searchQuery = ev.query } return true }
-  if (ev.status === 'rag_loaded') { ast.ragSources = ev.sources || []; return true }
-  if (ev.type === 'todo') { ast.todos = ev.todos; return true }
-  if (ev.type === 'tool_call') {
-    splitInterim(ast)
-    ast.toolCalls = ast.toolCalls || []
-    ast.seq = (ast.seq || 0) + 1
-    ast.toolCalls.push({ id: ev.id || '', tool: ev.tool, args: ev.args, status: 'running', result: '', sources: [], seq: ast.seq })
-    ast.phase = 'tool:' + ev.tool
-    return true
-  }
-  if (ev.type === 'tool_result') {
-    const list = ast.toolCalls || []
-    // Match by tool_call id first (same tool may be called multiple times),
-    // fall back to the first running call with the same name.
-    let tc = ev.id ? list.find((x) => x.id === ev.id) : null
-    if (!tc) tc = list.find((x) => x.tool === ev.tool && x.status === 'running')
-    if (tc) {
-      tc.status = 'done'
-      tc.result = ev.result
-      if (ev.sources) tc.sources = ev.sources
-    }
-    if (!list.some((x) => x.status === 'running')) ast.phase = ''
-    return true
-  }
-  if (ev.status === 'sub_started') {
-    splitInterim(ast)
-    ast.subagents = ast.subagents || []
-    ast.seq = (ast.seq || 0) + 1
-    ast.subagents.push({ name: ev.subagent, task: ev.task, status: 'running', seq: ast.seq })
-    ast.phase = 'sub:' + ev.subagent
-    return true
-  }
-  if (ev.status === 'sub_done') {
-    const s = (ast.subagents || []).find((x) => x.name === ev.subagent)
-    if (s) s.status = 'done'
-    ast.phase = ''
-    return true
-  }
-  if (ev.type === 'approval_request') {
-    ast.approvals = ast.approvals || []
-    ast.approvals.push({ action_id: ev.action_id, tool: ev.tool, args: ev.args, allowed: ev.allowed, status: 'pending' })
-    ast.pendingApproval = true
-    ast.phase = 'approval'
-    return true
-  }
-  if (ev.status === 'run_end') {
-    if (typeof ev.final_text === 'string') ast.content = ev.final_text
-    ast.interrupted = ev.interrupted; ast.phase = ''
-    if (ev.tokens) addContextTokens(ev.tokens)
-    return true
-  }
-  if (ev.error) { log.error('SSE error |', ev.error); ast.content = '⚠ ' + ev.error; ast.error = true; ast.phase = ''; return true }
-  if (ev.done) { if (ev.tokens) ast.tokens = ev.tokens; return true }
-  return false
-}
-
 async function readStream(r, ast, onDone) {
   const reader = r.body.getReader()
   const dec = new TextDecoder()
+  const hooks = {
+    setContextTokens,
+    onUnknown: (e) => log.warn('unknown SSE event |', e),
+  }
   let buf = ''
   while (true) {
     let { done, value } = await reader.read()
@@ -143,22 +74,26 @@ async function readStream(r, ast, onDone) {
       if (!l.startsWith('data:')) continue
       let ev
       try { ev = JSON.parse(l.slice(5).trim()) } catch { continue }
-      if (applyEvent(ast, ev)) { await nextTick(); if (atBottom.value) scroll() }
+      if (applyEvent(ast, ev, hooks)) { await nextTick(); if (atBottom.value) scroll() }
     }
   }
   if (onDone) onDone()
 }
 
 async function handleApproval(msg, approval, decision, editedArgs, message) {
+  if (busy.value) return
   const ap = (msg.approvals || []).find((a) => a.action_id === approval.action_id)
   if (ap) ap.status = decision
   if (!(msg.approvals || []).some((a) => a.status === 'pending')) msg.pendingApproval = false
+  busy.value = true
   msg.streaming = true
+  abortCtrl = new AbortController()
   try {
     let r = await fetchRaw('/approvals/' + approval.action_id, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decision, edited_args: editedArgs, message })
+      body: JSON.stringify({ decision, edited_args: editedArgs, message }),
+      signal: abortCtrl.signal
     })
     await readStream(r, msg)
   } catch (e) {
@@ -166,6 +101,7 @@ async function handleApproval(msg, approval, decision, editedArgs, message) {
     msg.content += '\n⚠ ' + (e.message || t('err'))
   } finally {
     msg.streaming = false
+    busy.value = false; abortCtrl = null
     await nextTick(); if (atBottom.value) scroll()
     setTimeout(() => loadAll(), 0)
   }
@@ -288,7 +224,11 @@ async function openConv(cid) {
   if (!d) return
   activeId.value = cid
   msgs.value = d.messages || []
-  setContextTokens((d.messages || []).reduce((s, m) => s + (m.tokens || 0), 0))
+  // 上下文占用 = 最近一次调用的 tokens（取最后一条有值的 assistant 消息），
+  // 而不是历史求和：每轮请求都会重发全部历史，求和会重复计数。
+  const lastTokens = [...msgs.value].reverse().find((m) => m.role === 'assistant' && m.tokens > 0)
+  if (lastTokens) setContextTokens(lastTokens.tokens)
+  else resetContextTokens()
   welcomeShow.value = false
   convKey.value++
   await nextTick()
@@ -300,7 +240,7 @@ function newChat() {
   activeId.value = null
   msgs.value = []
   input.value = ''
-  setContextTokens(0)
+  resetContextTokens()
   welcomeShow.value = true
   editingIdx.value = null
   setView('chat')
@@ -317,10 +257,17 @@ async function delConv(cid) {
   if (activeId.value === cid) {
     activeId.value = null
     msgs.value = []
+    resetContextTokens()
     welcomeShow.value = true
     if (welcomeRef.value) welcomeRef.value.runTypewriter()
   }
   loadAll()
+}
+
+// 稳定 key：已持久化消息用数据库 id，流式临时消息用会话序号。
+// 避免以下标为 key 时，retry/regenerate 裁剪数组后组件实例被复用到别的消息。
+function msgKey(m, i) {
+  return m.id != null ? 'm' + m.id : 'n' + convKey.value + '-' + i
 }
 
 function scroll() {
@@ -515,27 +462,23 @@ watch(view, () => {
 
         <div class="chat-area" ref="chatArea" @scroll="onScroll">
           <div class="chat-inner">
-            <Dashboard v-if="!msgs.length && welcomeShow" ref="welcomeRef" @send="send" @tempFile="onTempFile" />
+            <Dashboard v-if="!msgs.length && welcomeShow" ref="welcomeRef" @send="(text, ids) => send(text, false, ids)" @tempFile="onTempFile" />
 
-            <ChatMessage
-              v-for="(m, i) in msgs"
-              :key="convKey + '-' + i"
-              :message="m"
-              :index="i"
-              @regenerate="regenerate(i)"
-              @retry="retry(i)"
-              @send="(payload) => send(payload?.content || m.content, true)"
-              @delete="deleteMsg(i, m.id)"
-            />
-            <template v-for="(m, i) in msgs" :key="'run-' + convKey + '-' + i">
+            <!-- 气泡与其附属视图（执行时间线）同属一个渲染单元：
+                 时间线必须紧跟对应消息，不能作为独立列表堆到末尾。 -->
+            <template v-for="(m, i) in msgs" :key="msgKey(m, i)">
+              <ChatMessage
+                :message="m"
+                :index="i"
+                @regenerate="regenerate(i)"
+                @retry="retry(i)"
+                @send="(payload) => send(payload?.content || m.content, true)"
+                @delete="deleteMsg(i, m.id)"
+              />
               <AgentRun v-if="m.role === 'assistant'" :msg="m" @approve="handleApproval" />
             </template>
 
             <div class="typing" v-if="busy"><span></span><span></span><span></span></div>
-            <div class="searching-bar" v-if="searchingQuery">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <span>{{ t('searching') }}</span>
-            </div>
           </div>
         </div>
 
@@ -662,16 +605,6 @@ watch(view, () => {
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
-}
-
-.searching-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--accent);
-  font-size: 13px;
-  padding: 8px 0;
-  animation: fadeIn .3s var(--ease);
 }
 
 @media (max-width: 768px) {
