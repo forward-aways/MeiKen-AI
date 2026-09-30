@@ -494,9 +494,15 @@ watch(view, () => {
           @tempFile="onTempFile"
         />
 
-        <div class="ai-disclaimer" v-if="msgs.length">— {{ t('aiDisclaimer') }} —</div>
-
-        <SiteFooter v-if="msgs.length" />
+        <!-- 底部一行：免责声明（有消息时）+ 备案号（始终）。
+             落地页时输入框隐藏，此行即页面最底部。 -->
+        <div class="chat-foot">
+          <template v-if="msgs.length">
+            <span class="ai-disclaimer">— {{ t('aiDisclaimer') }} —</span>
+            <span class="foot-dot">·</span>
+          </template>
+          <SiteFooter />
+        </div>
 
         <button class="scroll-btn glass-pop" :class="{ 'with-activity': view === 'chat' && !isMobile }" v-if="!atBottom && msgs.length" @click="scroll(); atBottom = true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
@@ -687,15 +693,19 @@ watch(view, () => {
   flex-shrink: 0;
 }
 
-.ai-disclaimer {
-  text-align: center;
-  font-size: 11.5px;
-  color: var(--text-muted);
+/* 底部一行：免责声明 + 分隔点 + 备案号 */
+.chat-foot {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
   padding: 0 1rem .4rem;
   margin-top: -.8rem;
   flex-shrink: 0;
+}
+.ai-disclaimer {
+  font-size: 11.5px;
+  color: var(--text-muted);
   opacity: .7;
 }
+.foot-dot { font-size: 11.5px; color: var(--text-muted); opacity: .5; }
 
 @media (max-width: 768px) {
   .disclaimer-modal { padding: 1.5rem 1.2rem; }

@@ -196,7 +196,7 @@ onMounted(() => {
 }
 
 /* 备案号钉在页面底部：登录页是 flex 居中布局，页脚若作为普通子元素会被排到卡片旁边 */
-.login-footer { position: absolute; left: 0; right: 0; bottom: .4rem; }
+.login-footer { position: absolute; left: 0; right: 0; bottom: .4rem; text-align: center; }
 
 .login-card {
   width: 100%;

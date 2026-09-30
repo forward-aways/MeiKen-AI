@@ -186,10 +186,14 @@ describe('ICP 备案号（对应 ADR-20260930-ICPFooter）', () => {
   })
 
   it('T3 renders the footer on every visitor entry point', () => {
-    for (const name of ['components/LoginPage.vue', 'components/Dashboard.vue', 'App.vue']) {
+    // 登录页（未登录首屏）与 App.vue 底部行（覆盖落地页与聊天页）各一处
+    for (const name of ['components/LoginPage.vue', 'App.vue']) {
       const src = readFileSync(join(SRC, name), 'utf-8')
       expect(src, `${name} 缺少备案号页脚（会被通信管理局驳回）`).toContain('SiteFooter')
     }
+    // 落地页与聊天页共用 App.vue 的底部行，不再各自渲染，避免重复
+    const dash = readFileSync(join(SRC, 'components', 'Dashboard.vue'), 'utf-8')
+    expect(dash, '落地页不应再单独渲染备案号（由 App.vue 底部行统一负责）').not.toContain('<SiteFooter')
   })
 
   it('T4 defines the filing number in exactly one place', () => {
