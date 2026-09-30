@@ -169,6 +169,38 @@ describe('typography guard（对应 ADR-20260921-WelcomeDescOrphan）', () => {
   })
 })
 
+describe('ICP 备案号（对应 ADR-20260930-ICPFooter）', () => {
+  const BEIAN = '辽ICP备2026015937号-1'
+  const MIIT = 'https://beian.miit.gov.cn/'
+
+  it('T1 keeps the filing number verbatim in the single source component', () => {
+    const src = readFileSync(join(SRC, 'components', 'SiteFooter.vue'), 'utf-8')
+    expect(src, '备案号必须与备案系统完全一致').toContain(BEIAN)
+  })
+
+  it('T2 links to the MIIT filing homepage in a new tab', () => {
+    const src = readFileSync(join(SRC, 'components', 'SiteFooter.vue'), 'utf-8')
+    expect(src).toContain(MIIT)
+    expect(src).toMatch(/target="_blank"/)
+    expect(src).toMatch(/rel="noopener/)
+  })
+
+  it('T3 renders the footer on every visitor entry point', () => {
+    for (const name of ['components/LoginPage.vue', 'components/Dashboard.vue', 'App.vue']) {
+      const src = readFileSync(join(SRC, name), 'utf-8')
+      expect(src, `${name} 缺少备案号页脚（会被通信管理局驳回）`).toContain('SiteFooter')
+    }
+  })
+
+  it('T4 defines the filing number in exactly one place', () => {
+    const offenders = files
+      .filter((f) => rel(f) !== 'components/SiteFooter.vue')
+      .filter((f) => readFileSync(f, 'utf-8').includes(BEIAN))
+      .map(rel)
+    expect(offenders, `备案号必须单点维护：${offenders.join(', ')}`).toEqual([])
+  })
+})
+
 describe('graph legend（对应 ADR-20260921-GraphLegend）', () => {
   const src = readFileSync(join(SRC, 'components', 'AgentConfigPage.vue'), 'utf-8')
   const legend = (src.match(/<div class="graph-legend[\s\S]*?<\/div>/) || [])[0] || ''

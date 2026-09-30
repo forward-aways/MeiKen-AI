@@ -5,6 +5,7 @@ import { useImageAttachments } from '../attachments.js'
 import KBPill from './KBPill.vue'
 import AgentOptions from './AgentOptions.vue'
 import AttachPreview from './AttachPreview.vue'
+import SiteFooter from './SiteFooter.vue'
 
 const emit = defineEmits(['send', 'tempFile'])
 const typewriterText = ref('')
@@ -158,6 +159,8 @@ defineExpose({ runTypewriter })
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
       </button>
     </div>
+
+    <SiteFooter />
   </div>
 </template>
 

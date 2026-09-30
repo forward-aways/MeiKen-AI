@@ -76,12 +76,14 @@
         </div>
       </div>
     </div>
+    <div class="login-footer"><SiteFooter /></div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { authed, user, t, loadAll } from '../store.js'
+import SiteFooter from './SiteFooter.vue'
 
 const isLocal = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost'
 const API = import.meta.env.DEV
@@ -190,7 +192,11 @@ onMounted(() => {
   height: 100vh;
   background: var(--bg);
   padding: 2rem;
+  position: relative;
 }
+
+/* 备案号钉在页面底部：登录页是 flex 居中布局，页脚若作为普通子元素会被排到卡片旁边 */
+.login-footer { position: absolute; left: 0; right: 0; bottom: .4rem; }
 
 .login-card {
   width: 100%;
